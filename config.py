@@ -19,20 +19,31 @@ ANTHROPIC_API_KEY: str | None = os.getenv("ANTHROPIC_API_KEY")
 
 
 def _get_key(*names: str) -> str | None:
-    """여러 이름 중 하나라도 찾으면 반환. os.environ → st.secrets 우선순위."""
+    """여러 이름 중 하나라도 찾으면 반환. os.environ → st.secrets 우선순위.
+
+    Streamlit 환경이 아니거나 secrets.toml이 없어도 안전하게 None 반환.
+    """
+    # 1) os.environ
     for name in names:
         v = os.getenv(name)
         if v:
             return v
+
+    # 2) Streamlit secrets — 전체를 광역 try/except로 감싸서 어떠한 오류도 회피
     try:
-        import streamlit as st
+        import streamlit as st  # type: ignore
+        # st.secrets 접근 자체가 secrets.toml 없을 때 예외 던질 수 있음
+        secrets = st.secrets
         for name in names:
             try:
-                if name in st.secrets:
-                    return st.secrets[name]
+                # KeyError / StreamlitSecretNotFoundError 모두 try로 흡수
+                v = secrets.get(name) if hasattr(secrets, "get") else None
+                if v:
+                    return str(v)
             except Exception:  # noqa: BLE001
-                pass
+                continue
     except Exception:  # noqa: BLE001
+        # streamlit 미설치 / secrets.toml 없음 / 기타 어떤 예외든 OK
         pass
     return None
 

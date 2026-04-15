@@ -694,32 +694,36 @@ elif _page == "📈 분석":
             import matplotlib
             matplotlib.rcParams["axes.unicode_minus"] = False
 
-            text = " ".join(r.get("title", "") for r in results)
-            # 한글 폰트 자동 탐색
-            import glob
-            candidates = (
-                glob.glob("/usr/share/fonts/**/*Nanum*.ttf", recursive=True)
-                + glob.glob("/usr/share/fonts/**/NotoSansCJK*.ttc", recursive=True)
-                + glob.glob("/System/Library/Fonts/**/AppleSDGothicNeo*", recursive=True)
-            )
-            font_path = candidates[0] if candidates else None
+            from fonts import get_korean_font_path
 
-            wc = WordCloud(
-                font_path=font_path,
-                background_color="white",
-                width=800,
-                height=400,
-                max_words=80,
-            )
-            img = wc.generate(text)
-            fig, ax = plt.subplots(figsize=(10, 5))
-            ax.imshow(img, interpolation="bilinear")
-            ax.axis("off")
-            st.pyplot(fig)
+            text = " ".join(r.get("title", "") for r in results)
+
+            with st.spinner("한글 폰트 준비 중…"):
+                font_path = get_korean_font_path()
+
             if not font_path:
-                st.caption("※ 한글 폰트가 없어 한글이 깨질 수 있어요. NanumGothic 설치 권장.")
+                st.warning(
+                    "한글 폰트를 찾거나 받지 못했어요. "
+                    "인터넷 제한 환경이면 `assets/NanumGothic-Regular.ttf`로 수동 배치하세요."
+                )
+            else:
+                wc = WordCloud(
+                    font_path=font_path,
+                    background_color="white",
+                    width=800,
+                    height=400,
+                    max_words=80,
+                    colormap="tab10",
+                    prefer_horizontal=0.9,
+                )
+                img = wc.generate(text)
+                fig, ax = plt.subplots(figsize=(10, 5))
+                ax.imshow(img, interpolation="bilinear")
+                ax.axis("off")
+                st.pyplot(fig)
+                st.caption(f"📝 폰트 경로: `{font_path}`")
         except Exception as exc:  # noqa: BLE001
-            st.warning(f"워드클라우드 생성 실패: {exc}")
+            st.warning(f"워드클라우드 생성 실패: {type(exc).__name__}: {exc}")
 
 
 # ===== ⚙️ 설정 =====
@@ -736,22 +740,33 @@ elif _page == "⚙️ 설정":
         "**Streamlit Cloud Secrets** 또는 **로컬 `.env`** 에 저장하세요."
     )
 
-    # 현재 키 상태 한눈에
-    status_map = {
-        "🧠 Anthropic (AI 분석, Threads/TikTok)": bool(get_anthropic_key()),
-        "📺 Google (YouTube Data API v3)": bool(get_google_key()),
-        "👽 Reddit OAuth": bool(get_reddit_creds()),
-        "🟢 Naver Open API": bool(get_naver_creds()),
-        "✨ ScrapeCreators (선택, 유료)": bool(get_scrapecreators_key()),
-    }
+    # 각 키 상태 — 에러 안전하게 조회 (st.secrets 미존재 대비)
+    def _safe_call(fn):
+        try:
+            return bool(fn())
+        except Exception:  # noqa: BLE001
+            return False
+
+    status_items = [
+        ("🧠 Anthropic", _safe_call(get_anthropic_key)),
+        ("📺 Google", _safe_call(get_google_key)),
+        ("👽 Reddit", _safe_call(get_reddit_creds)),
+        ("🟢 Naver", _safe_call(get_naver_creds)),
+        ("✨ ScrapeCreators", _safe_call(get_scrapecreators_key)),
+    ]
+
     st.markdown("### 🔑 현재 키 상태")
-    cols = st.columns(len(status_map))
-    for i, (name, ok) in enumerate(status_map.items()):
-        with cols[i]:
-            if ok:
-                st.success(f"✅ {name}")
-            else:
-                st.error(f"❌ {name}")
+    # 모바일 대비 3+2 분할
+    for row in (status_items[:3], status_items[3:]):
+        if not row:
+            continue
+        cols = st.columns(len(row))
+        for i, (name, ok) in enumerate(row):
+            with cols[i]:
+                if ok:
+                    st.success(f"✅ {name}")
+                else:
+                    st.error(f"❌ {name}")
 
     st.divider()
 
@@ -981,17 +996,20 @@ SCRAPECREATORS_API_KEY=sk_...
 
     import pandas as _pd
     url_df = _pd.DataFrame(url_rows)
-    st.dataframe(
-        url_df,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "수집 페이지": st.column_config.LinkColumn(
-                "수집 페이지 (클릭해서 원본 확인)",
-                display_text=r"https?://([^/]+)(/.*)?",
-            ),
-        },
-    )
+    try:
+        st.dataframe(
+            url_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "수집 페이지": st.column_config.LinkColumn(
+                    "수집 페이지 (클릭해서 원본 확인)",
+                ),
+            },
+        )
+    except Exception as _df_exc:  # noqa: BLE001
+        st.warning(f"데이터프레임 표시 실패: {_df_exc}")
+        st.table(url_df)
 
     st.info(
         "💡 **'메타없음' 배지가 많이 보이면** 해당 사이트가 차단·레이아웃 변경됐을 가능성이 높아요. "
