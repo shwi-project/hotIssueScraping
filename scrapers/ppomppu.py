@@ -76,6 +76,42 @@ class PpomppuScraper(BaseScraper):
         "캐시백", "현금 지급", "현금지급",
     )
 
+    # --- 뽐뿌 상담실/쇼핑뽐뿌 카테고리 prefix ([렌탈상담] 처럼 앞머리) ---
+    # 이런 카테고리에서 온 글은 전부 광고·영업 글이므로 제외
+    AD_CATEGORY_PREFIXES = (
+        "[렌탈상담]", "[보험상담]", "[대출상담]", "[휴대폰상담]",
+        "[에어컨상담]", "[보안상담]", "[카드상담]", "[법률상담]",
+        "[인터넷가입상담]", "[가전견적상담]", "[신차견적상담]", "[PC견적상담]",
+        "[상담실]", "[쇼핑뽐뿌]", "[쇼핑몰뽐뿌]", "[핫딜광장]",
+        "렌탈상담", "보험상담", "대출상담", "휴대폰상담",
+        "에어컨상담", "보안상담", "카드상담", "법률상담",
+        "인터넷가입상담", "가전견적상담", "신차견적상담", "PC견적상담",
+    )
+
+    # ~상담 / ~상담실 같은 카테고리성 제목 정규식
+    _CATEGORY_SUFFIX_RE = re.compile(
+        r"^\s*\[?[가-힣A-Za-z0-9]{1,15}(?:상담|상담실|견적|포럼|장터)\]?\s*:?\s*"
+    )
+
+    def _is_ad_title(self, title: str) -> bool:
+        """뽐뿌 특화 추가 광고 판정 (base의 _is_notice_or_ad 외에)."""
+        if not title:
+            return False
+        t = title.strip()
+        if t in self.MENU_TEXTS:
+            return True
+        for s in self.AD_TITLE_SUBSTRINGS:
+            if s in t:
+                return True
+        # '[렌탈상담]' 같은 카테고리 prefix 시작
+        for p in self.AD_CATEGORY_PREFIXES:
+            if t.startswith(p):
+                return True
+        # '~상담', '~견적' 카테고리 label (20자 미만)
+        if len(t) < 30 and self._CATEGORY_SUFFIX_RE.match(t):
+            return True
+        return False
+
     def parse(self, html: str) -> list[dict]:
         soup = self.soup(html)
         items: list[dict] = []
@@ -101,8 +137,8 @@ class PpomppuScraper(BaseScraper):
                     items.append(parsed)
 
         # ---- 3차: 링크 휴리스틱 (모바일/데스크톱 둘 다 커버) ----
-        if len(items) < 3:
-            seen: set[str] = set()
+        if len(items) < 10:
+            seen: set[str] = set(it.get("url", "") for it in items)
             for a in soup.find_all("a", href=True):
                 href = a["href"]
                 if not re.search(r"view\.php.*no=\d+", href):
@@ -110,7 +146,7 @@ class PpomppuScraper(BaseScraper):
                 title = a.get_text(" ", strip=True)
                 if not title or len(title) < 5:
                     continue
-                if title in self.MENU_TEXTS:
+                if self._is_ad_title(title):
                     continue
                 if href in seen:
                     continue
@@ -141,18 +177,14 @@ class PpomppuScraper(BaseScraper):
                         score=score, views=views, comments=comments
                     ),
                 })
-                if len(items) >= 30:
+                if len(items) >= 80:
                     break
 
-        # 최종 필터: 메뉴 텍스트 완전일치 + 상업 substring
+        # 최종 필터: _is_ad_title + URL에 no= 숫자
         def _ok(it: dict) -> bool:
             t = (it.get("title") or "").strip()
-            if t in self.MENU_TEXTS:
+            if self._is_ad_title(t):
                 return False
-            for s in self.AD_TITLE_SUBSTRINGS:
-                if s in t:
-                    return False
-            # URL에 no= 숫자 꼭 포함돼야 게시글
             u = it.get("url", "")
             if not re.search(r"no=\d+", u):
                 return False
@@ -185,12 +217,8 @@ class PpomppuScraper(BaseScraper):
         title = title_el.get_text(" ", strip=True)
         if not title or len(title) < 5:
             return None
-        if title in self.MENU_TEXTS:
+        if self._is_ad_title(title):
             return None
-        # 상업성 배너 필터
-        for s in self.AD_TITLE_SUBSTRINGS:
-            if s in title:
-                return None
 
         url = href if href.startswith("http") else urljoin(
             "https://www.ppomppu.co.kr/", href.lstrip("./")
@@ -234,12 +262,8 @@ class PpomppuScraper(BaseScraper):
         href = a.get("href") or ""
         if not title or not href or len(title) < 3:
             return None
-        if title in self.MENU_TEXTS:
+        if self._is_ad_title(title):
             return None
-        # 상업성 배너 필터
-        for s in self.AD_TITLE_SUBSTRINGS:
-            if s in title:
-                return None
         # URL이 view.php 포함이어야 게시글
         if "view.php" not in href and "no=" not in href:
             return None
@@ -269,39 +293,47 @@ class PpomppuScraper(BaseScraper):
 
     # ------------------------------------------------------------------
     def get_trending(self, limit: int = 10) -> list[dict]:
-        """HOT 페이지(모바일) → fallback URL → 자유게시판 베스트 순서."""
-        half = max(1, limit // 2)
+        """HOT 페이지(모바일) → fallback URL → 자유게시판 베스트 순서.
+        필터링으로 많이 탈락되므로 각 페이지에서 넉넉히 가져옴 (limit*3)."""
+        # 수집 목표를 넉넉히 — 필터 후에도 limit 채울 수 있게
+        oversample = max(limit * 3, 30)
+        half = limit  # 핫딜만으로 limit 채울 수 있게 시도
 
         # 1) HOT (모바일) 시도, 실패 시 fallback
-        hot_deals = super().get_trending(limit=half)
+        hot_deals = super().get_trending(limit=oversample)
         deal_error = self.last_error
         if not hot_deals:
             for fb_url in self.FALLBACK_URLS:
                 try:
                     html = self.fetch(fb_url)
                     parsed = self.parse(html)
-                    parsed = [it for it in parsed if not self._is_notice_or_ad(it)]
+                    parsed = [it for it in parsed if not self._is_notice_or_ad(it)
+                              and not self._is_ad_title(it.get("title", ""))]
                     if parsed:
-                        hot_deals = [self._normalize(it) for it in parsed[:half]]
+                        hot_deals = [self._normalize(it) for it in parsed[:oversample]]
                         deal_error = ""
                         break
                 except Exception as exc:  # noqa: BLE001
                     deal_error = f"{type(exc).__name__}: {str(exc)[:80]}"
+        # 핫딜 너무 적으면 자유게시판도 가져옴
         for it in hot_deals:
             it["category"] = "핫딜"
 
-        # 2) 자유게시판 베스트
+        # 2) 자유게시판 베스트 — 핫딜이 limit에 못 미칠 때만
         free_items: list[dict] = []
         free_error = ""
-        try:
-            html = self.fetch(self.FREE_BEST_URL)
-            parsed = self.parse(html)
-            parsed = [it for it in parsed if not self._is_notice_or_ad(it)]
-            for it in parsed[:limit - len(hot_deals)]:
-                norm = self._normalize({**it, "category": "유머/밈"})
-                free_items.append(norm)
-        except Exception as exc:  # noqa: BLE001
-            free_error = f"{type(exc).__name__}: {str(exc)[:80]}"
+        if len(hot_deals) < limit:
+            try:
+                html = self.fetch(self.FREE_BEST_URL)
+                parsed = self.parse(html)
+                parsed = [it for it in parsed if not self._is_notice_or_ad(it)
+                          and not self._is_ad_title(it.get("title", ""))]
+                need = limit - len(hot_deals)
+                for it in parsed[:need]:
+                    norm = self._normalize({**it, "category": "유머/밈"})
+                    free_items.append(norm)
+            except Exception as exc:  # noqa: BLE001
+                free_error = f"{type(exc).__name__}: {str(exc)[:80]}"
 
         combined = (hot_deals + free_items)[:limit]
         if combined:

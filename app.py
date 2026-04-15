@@ -69,15 +69,58 @@ st.markdown(
         font-weight: 700;
         font-size: 1rem;
         margin: 6px 0 4px 0;
-        color: #111827;
+        color: var(--text-color, #111827);
         line-height: 1.35;
+    }
+    .item-title a {
+        color: var(--link-color, #2563EB) !important;
     }
     .item-meta {
         font-size: 0.8rem;
-        color: #6B7280;
+        opacity: 0.72;
+        color: var(--text-color, #6B7280);
         margin-bottom: 4px;
     }
     .stars { color: #F59E0B; }
+
+    /* 다크모드 가독성 보강 */
+    @media (prefers-color-scheme: dark) {
+        .item-title { color: #F3F4F6 !important; }
+        .item-title a { color: #93C5FD !important; }
+        .item-meta { color: #D1D5DB !important; }
+        .category-tag {
+            background: #374151 !important;
+            color: #E5E7EB !important;
+        }
+        .summary-row {
+            background: #1F2937 !important;
+            border-color: #374151 !important;
+            color: #F3F4F6 !important;
+        }
+        .summary-row b { color: #F9FAFB !important; }
+        .saved-pill {
+            background: #064E3B !important;
+            color: #A7F3D0 !important;
+        }
+        .save-pill {
+            background: #451A03 !important;
+            color: #FED7AA !important;
+            border-color: #F59E0B !important;
+        }
+        .save-pill:hover {
+            background: #78350F !important;
+            color: #FED7AA !important;
+        }
+        .link-pill {
+            background: #374151 !important;
+            color: #E5E7EB !important;
+        }
+        .link-pill:hover { background: #4B5563 !important; }
+        .category-tag.warn {
+            background: #78350F !important;
+            color: #FEF3C7 !important;
+        }
+    }
 
     /* 카드 헤더 한 줄 레이아웃 (모바일 포함) */
     .card-header {

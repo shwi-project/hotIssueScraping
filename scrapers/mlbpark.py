@@ -14,6 +14,20 @@ from .base import BaseScraper
 
 _ARTICLE_RE = re.compile(r"bbs_view\.php.*(?:id|b_id)=\d+", re.I)
 
+# MLB파크 말머리/카테고리 — 정확 일치하면 제목이 아니라 카테고리
+_MLB_CATEGORIES = {
+    # 스포츠
+    "야구", "MLB", "KBO", "축구", "해축", "K리그", "EPL", "농구", "NBA",
+    "배구", "골프", "테니스", "격투기", "UFC", "WWE", "F1", "e스포츠",
+    "LOL", "롤", "펠클", "펠레클래식",
+    # 일반 카테고리
+    "IT", "문화", "정치", "경제", "사회", "연예", "방송", "음악", "영화",
+    "드라마", "만화", "게임", "역사", "문학", "종교", "철학",
+    "코인", "주식", "부동산", "여행", "요리", "반려동물",
+    # 파크 특화
+    "VS", "자유", "기타", "토론", "썰", "장터",
+}
+
 
 class MlbparkScraper(BaseScraper):
     source = "MLB파크"
@@ -38,7 +52,10 @@ class MlbparkScraper(BaseScraper):
                 if not _ARTICLE_RE.search(href):
                     continue
                 title = a.get_text(" ", strip=True)
-                if not title or len(title) < 8:
+                # 최소 10자 + 카테고리 이름 제외
+                if not title or len(title) < 10:
+                    continue
+                if title in _MLB_CATEGORIES:
                     continue
                 if href in seen:
                     continue
@@ -55,7 +72,6 @@ class MlbparkScraper(BaseScraper):
                     nums = [self.to_int(n) for n in re.findall(r"[\d,]+", ptxt)]
                     nums = [n for n in nums if n > 0]
                     if nums:
-                        # MLB파크는 [추천, 조회, 댓글] 순서일 때가 많음
                         nums_sorted = sorted(nums, reverse=True)
                         if len(nums_sorted) >= 1:
                             views = nums_sorted[0]
@@ -72,7 +88,7 @@ class MlbparkScraper(BaseScraper):
                         score=score, views=views, comments=comments
                     ),
                 })
-                if len(items) >= 40:
+                if len(items) >= 60:
                     break
         return items
 
@@ -86,9 +102,9 @@ class MlbparkScraper(BaseScraper):
         title_link = None
         for a in tr.find_all("a", href=True):
             if _ARTICLE_RE.search(a["href"]):
-                # 말머리 텍스트는 제외하기 위해, 텍스트 길이 8자 이상인 a만
                 text = a.get_text(" ", strip=True)
-                if len(text) >= 8:
+                # 최소 10자 + MLB 카테고리 블랙리스트 제외
+                if len(text) >= 10 and text not in _MLB_CATEGORIES:
                     title_link = a
                     break
 
