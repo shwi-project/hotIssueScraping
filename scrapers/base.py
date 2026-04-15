@@ -424,7 +424,13 @@ class BaseScraper(ABC):
             if abs_url in seen_hrefs:
                 continue
 
-            title = a.get_text(" ", strip=True)
+            # 제목 후보: a 태그 내부에서 가장 적절한 텍스트 추출
+            title_el = (
+                a.select_one(".title, .subject, .sbj, .tit, h3, h4, strong")
+                or a
+            )
+            raw_title = title_el.get_text(" ", strip=True)
+            title = self.clean_title(raw_title)
             if not title or len(title) < 8 or len(title) > 200:
                 continue
             # 메뉴성 텍스트 제외
@@ -432,29 +438,47 @@ class BaseScraper(ABC):
                 continue
 
             # ★ 핵심: 부모 컨텍스트에 숫자가 2개 이상 있어야 게시글로 인정
-            # (게시글 목록은 보통 '날짜 + 조회수 + 추천/댓글' 3개 이상의 숫자 필드가 있음,
-            # 네비게이션/광고/사이드바는 숫자가 거의 없음)
             parent = a.find_parent(["tr", "li", "article", "div"])
             score = views = comments = 0
             if parent:
                 parent_text = parent.get_text(" ", strip=True)
-                all_nums = re.findall(r"\d{1,6}(?:,\d{3})*", parent_text)
-                if len(all_nums) < 2:
+                all_nums_str = re.findall(r"\d{1,6}(?:,\d{3})*", parent_text)
+                if len(all_nums_str) < 2:
                     continue
 
-                # 레이블 기반 추출 시도
-                m_score = re.search(r"(?:추천|좋아요|공감|up|vote)[\s:]*([\d,]+)",
-                                    parent_text, re.I)
-                m_views = re.search(r"(?:조회|views?|hit)[\s:]*([\d,]+)",
-                                    parent_text, re.I)
-                m_comments = re.search(r"(?:댓글|reply|comment)[\s:]*([\d,]+)",
-                                       parent_text, re.I)
+                # 레이블 기반 추출 — 더 많은 변형 지원
+                m_score = re.search(
+                    r"(?:추천\s*수?|좋아요|공감|👍|⭐|UP|vote|likes?)[\s:：]*([\d,]+)",
+                    parent_text, re.I,
+                )
+                m_views = re.search(
+                    r"(?:조회\s*수?|👁|views?|hit|읽음)[\s:：]*([\d,]+)",
+                    parent_text, re.I,
+                )
+                m_comments = re.search(
+                    r"(?:댓글\s*수?|💬|reply|comments?)[\s:：]*([\d,]+)",
+                    parent_text, re.I,
+                )
                 if m_score:
                     score = self.to_int(m_score.group(1))
                 if m_views:
                     views = self.to_int(m_views.group(1))
                 if m_comments:
                     comments = self.to_int(m_comments.group(1))
+
+                # 레이블 매칭 없으면 매그니튜드 기반 추정:
+                # 가장 큰 숫자 → views, 그 다음 → comments
+                if not (score or views or comments):
+                    nums = sorted(
+                        {self.to_int(n) for n in all_nums_str if self.to_int(n) > 0},
+                        reverse=True,
+                    )
+                    # 100 이상이고 댓글/추천 같은 작은 수 후보 제외 (날짜 4자리 등 회피)
+                    nums = [n for n in nums if 1 <= n <= 9_999_999]
+                    if len(nums) >= 1:
+                        views = nums[0]
+                    if len(nums) >= 2:
+                        comments = nums[1] if nums[1] < nums[0] // 5 else 0
             else:
                 # 부모 없음 = 구조 비정상, 스킵
                 continue
@@ -486,6 +510,32 @@ class BaseScraper(ABC):
     # ------------------------------------------------------------------
     # 반환 포맷 정규화
     # ------------------------------------------------------------------
+    @staticmethod
+    def clean_title(raw: str) -> str:
+        """제목에서 메타데이터/닉네임 잔재 제거.
+
+        예) '실제 제목 닉네임 조회 1234 추천 56' → '실제 제목'
+        """
+        if not raw:
+            return ""
+        import re
+        s = raw.strip()
+        # 1) 후행 메타데이터 패턴 절단
+        # '... 조회 12,345', '... 추천 56', '... 댓글 7' 등의 구간 발견 시 그 앞만
+        for label in ("조회", "추천", "댓글", "좋아요", "공감",
+                      "views", "view", "hit", "comment", "reply", "like"):
+            m = re.search(rf"\s+{label}\s*[:：]?\s*[\d,]+.*$", s, re.I)
+            if m:
+                s = s[:m.start()].rstrip()
+        # 2) 뒤에 [숫자] 또는 (숫자)로 댓글 표시된 경우 제거
+        s = re.sub(r"\s*[\[\(]\s*\d+\s*[\]\)]\s*$", "", s)
+        # 3) 시간/날짜 표시 (10:23, 04.15, 2024-01-01 등) 후행 제거
+        s = re.sub(r"\s+\d{1,2}[:.\-]\d{1,2}(?:[:.\-]\d{1,4})?\s*$", "", s)
+        s = re.sub(r"\s+\d{4}[-./]\d{1,2}[-./]\d{1,2}\s*$", "", s)
+        # 4) 연속 공백 정리
+        s = re.sub(r"\s{2,}", " ", s).strip()
+        return s
+
     def _normalize(self, item: dict) -> dict:
         now = datetime.now(timezone.utc).isoformat()
         def _safe_int(v) -> int:
@@ -497,7 +547,7 @@ class BaseScraper(ABC):
                 return self.to_int(v)
 
         return {
-            "title": (item.get("title") or "").strip(),
+            "title": self.clean_title(item.get("title") or ""),
             "summary": (item.get("summary") or "").strip(),
             "url": item.get("url", ""),
             "source": item.get("source", self.source),
@@ -505,7 +555,6 @@ class BaseScraper(ABC):
             "engagement": item.get("engagement", ""),
             "thumbnail": item.get("thumbnail", ""),
             "collected_at": item.get("collected_at", now),
-            # 정렬/분석에 쓰이는 숫자 필드 (있으면 채워짐)
             "score": _safe_int(item.get("score")),
             "views": _safe_int(item.get("views")),
             "comments": _safe_int(item.get("comments")),

@@ -550,7 +550,7 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                 '<span class="category-tag warn" title="조회/추천/댓글 수치 없음">'
                 '⚠️ 메타없음</span>'
             )
-        # 저장 상태별 pill 추가
+        # 저장 상태별 pill 추가 (제목이 이미 링크이므로 원문 pill 생략)
         if show_save and url:
             if is_saved:
                 header_bits.append('<span class="saved-pill">✅ 저장됨</span>')
@@ -560,11 +560,6 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                     f'<a href="?save={save_id}" target="_self" class="save-pill" '
                     f'title="저장">★ 저장</a>'
                 )
-        if url:
-            header_bits.append(
-                f'<a href="{url}" target="_blank" class="link-pill" title="원문 보기">'
-                f'🔗 원문</a>'
-            )
         st.markdown(
             '<div class="card-header">' + "".join(header_bits) + '</div>',
             unsafe_allow_html=True,
@@ -579,7 +574,9 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
             st.markdown(f'<div class="item-meta">📊 {engagement}</div>', unsafe_allow_html=True)
         elif not has_meta:
             st.markdown(
-                '<div class="item-meta" style="color:#92400E;">'
+                '<div class="item-meta" style="color:#92400E;" '
+                'title="사이트 목록에서 숫자가 표시되지 않거나, 스크래퍼가 셀렉터를 못 찾았거나, '
+                '아이콘만 사용해 텍스트로 추출 불가한 경우입니다.">'
                 '⚠️ 추천/조회/댓글 수치 없음 — 원문 확인 권장</div>',
                 unsafe_allow_html=True,
             )
