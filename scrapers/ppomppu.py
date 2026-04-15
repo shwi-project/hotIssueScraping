@@ -32,14 +32,33 @@ class PpomppuScraper(BaseScraper):
         "?id=freeboard&page=1&category=999"
     )
 
-    # --- 메뉴/카테고리 텍스트 (수집 결과에서 제외) ---
+    # --- 메뉴/카테고리/정책 텍스트 (수집 결과에서 제외) ---
     MENU_TEXTS = {
+        # 게시판 이름
         "뽐뿌", "자유게시판", "뽐뿌게시판", "이벤트게시판",
         "쿠폰게시판", "이것저것공유", "휴대폰뽐뿌", "가전뽐뿌", "컴퓨터뽐뿌",
+        "뽐뿌4", "뽐뿌5", "뽐뿌6", "뽐뿌7", "뽐뿌8",
+        # 카테고리 탭
         "오늘의특가", "오늘특가", "최신글", "인기글", "인기순", "최신순",
-        "메인", "홈", "전체", "랭킹", "쇼핑", "설정", "로그인", "회원가입",
-        "마이페이지", "구매가이드", "광고문의",
+        "전체", "랭킹", "쇼핑", "HOT", "BEST", "NEW",
+        # 네비게이션
+        "메인", "홈", "설정", "로그인", "회원가입", "마이페이지",
+        "구매가이드",
+        # 법적/정책/고객센터 (footer)
+        "개인정보처리방침", "개인정보취급방침", "청소년보호정책",
+        "이용약관", "책임의 한계", "책임한계", "저작권정책",
+        "광고/제휴", "광고·제휴", "광고ㆍ제휴", "광고문의", "제휴문의",
+        "불법촬영물등 신고", "불법촬영물 신고", "신고안내",
+        "자주묻는질문", "FAQ", "고객센터", "공지사항",
+        "회사소개", "사이트맵", "이메일무단수집거부",
     }
+
+    # --- 휴대폰 / 렌탈 관련 상업 링크 (광고 배너성) ---
+    AD_TITLE_SUBSTRINGS = (
+        "휴대폰 개통", "휴대폰개통", "통신비 절약",
+        "렌탈 신청", "렌탈신청", "렌탈 문의", "렌탈문의",
+        "상담 신청", "상담신청",
+    )
 
     def parse(self, html: str) -> list[dict]:
         soup = self.soup(html)
@@ -109,8 +128,20 @@ class PpomppuScraper(BaseScraper):
                 if len(items) >= 30:
                     break
 
-        # MENU_TEXTS 필터 최종 적용
-        items = [it for it in items if it.get("title") not in self.MENU_TEXTS]
+        # 최종 필터: 메뉴 텍스트 완전일치 + 상업 substring
+        def _ok(it: dict) -> bool:
+            t = (it.get("title") or "").strip()
+            if t in self.MENU_TEXTS:
+                return False
+            for s in self.AD_TITLE_SUBSTRINGS:
+                if s in t:
+                    return False
+            # URL에 no= 숫자 꼭 포함돼야 게시글
+            u = it.get("url", "")
+            if not re.search(r"no=\d+", u):
+                return False
+            return True
+        items = [it for it in items if _ok(it)]
         return items
 
     def _extract_mobile(self, li) -> dict | None:
@@ -140,6 +171,10 @@ class PpomppuScraper(BaseScraper):
             return None
         if title in self.MENU_TEXTS:
             return None
+        # 상업성 배너 필터
+        for s in self.AD_TITLE_SUBSTRINGS:
+            if s in title:
+                return None
 
         url = href if href.startswith("http") else urljoin(
             "https://www.ppomppu.co.kr/", href.lstrip("./")
@@ -185,6 +220,10 @@ class PpomppuScraper(BaseScraper):
             return None
         if title in self.MENU_TEXTS:
             return None
+        # 상업성 배너 필터
+        for s in self.AD_TITLE_SUBSTRINGS:
+            if s in title:
+                return None
         # URL이 view.php 포함이어야 게시글
         if "view.php" not in href and "no=" not in href:
             return None

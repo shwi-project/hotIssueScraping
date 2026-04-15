@@ -177,7 +177,26 @@ class BaseScraper(ABC):
 
     @staticmethod
     def soup(html: str) -> BeautifulSoup:
-        return BeautifulSoup(html, "lxml")
+        """HTML → BeautifulSoup. 파싱 전에 footer/header/nav/aside 영역을 제거해
+        약관/정책/저작권/고객센터 같은 사이트 전역 링크가 수집되지 않게 한다."""
+        soup = BeautifulSoup(html, "lxml")
+        # 태그 기반 제거
+        for tag_name in ("header", "footer", "nav", "aside"):
+            for el in soup.find_all(tag_name):
+                el.decompose()
+        # 클래스/ID 기반 제거 — 실제 사이트에서 자주 쓰는 이름들
+        selectors = (
+            "#header", "#footer", "#nav", "#navbar", "#sidebar", "#aside",
+            "#gnb", "#lnb", "#menu", "#topbar", "#bottom", "#quick",
+            ".header", ".footer", ".nav", ".navbar", ".navigation",
+            ".sidebar", ".aside", ".side", ".gnb", ".lnb", ".menu", ".topbar",
+            ".bottom-menu", ".bottom_menu", ".policy", ".policy-links",
+            ".terms", ".copyright", ".site-info", ".site_info",
+        )
+        for sel in selectors:
+            for el in soup.select(sel):
+                el.decompose()
+        return soup
 
     # ------------------------------------------------------------------
     # 공지/광고/네비게이션 필터
@@ -200,12 +219,23 @@ class BaseScraper(ABC):
         "[이벤트]", "(이벤트)", "[EVENT]", "[event]",
         "[광고]", "(광고)", "[AD]", "(AD)", "[ad]", "광고문의",
         "notice:", "[notice]", "(notice)",
-        # 괄호 없는 공지성 문구 (제목에 substring으로 포함되면 공지)
+        # 괄호 없는 공지성 문구
         "이용 안내", "이용안내", "이용 규칙", "이용규칙",
         "운영 안내", "운영안내", "운영 정책", "운영정책", "운영 원칙", "운영원칙",
         "서비스 안내", "서비스안내", "점검 안내", "점검안내",
         "안내드립니다", "알려드립니다", "공지합니다", "공지사항",
         "이용약관", "이용 약관", "가이드라인",
+        # 사이트 법적/정책 문서 (뽐뿌 등 footer에서 자주 등장)
+        "개인정보처리방침", "개인정보 처리방침", "개인정보취급방침",
+        "청소년보호정책", "청소년 보호정책", "청소년보호 정책",
+        "저작권정책", "저작권 정책", "저작권보호",
+        "책임의 한계", "책임한계", "면책조항",
+        "불법촬영물등 신고", "불법촬영물 신고", "불법 촬영물",
+        "광고/제휴", "광고·제휴", "광고ㆍ제휴", "광고 제휴",
+        "제휴문의", "제휴 문의", "광고문의", "광고 문의", "제안문의",
+        "자주묻는질문", "자주 묻는 질문", "자주묻는 질문", "FAQ",
+        "회사소개", "회사 소개", "사이트맵", "사이트 맵",
+        "고객센터", "고객 센터", "신고안내", "신고 안내",
     ]
     #: 제목/요약에서 발견되면 광고/모집글로 간주
     AD_KEYWORDS: list[str] = [
