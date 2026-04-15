@@ -149,31 +149,37 @@ st.markdown(
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:first-child {
         flex: 1 1 auto !important;
     }
-    /* 카드 헤더 우측 컬럼 (저장 버튼 자리)만 폭 제한 + 시각적 축소 */
+    /* 카드 헤더 우측 컬럼 (스크랩 버튼 자리) — '★ 스크랩' 한 줄 보장 */
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child,
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child {
-        max-width: 95px !important;
-        min-width: 70px !important;
+        max-width: 140px !important;
+        min-width: 110px !important;
         flex: 0 0 auto !important;
+        overflow: visible !important;
     }
-    /* 그 컬럼 안의 모든 버튼/요소 transform으로 축소 (specificity 회피) */
-    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:last-child .stButton {
-        transform: scale(0.65);
-        transform-origin: right top;
-        margin-top: -10px !important;
-        margin-bottom: -10px !important;
-        margin-right: -6px !important;
+    /* 버튼 본체 — compact 직접 사이즈 지정 + 줄바꿈 방지 */
+    div[class*="st-key-cardhead_"] .stButton,
+    div[class*="st-key-cardhead_"] .stButton button,
+    div[class*="st-key-cardhead_"] button[kind],
+    div[class*="st-key-cardhead_"] button[data-testid*="baseButton"] {
+        white-space: nowrap !important;
     }
-    /* 폴백 — CSS 사이즈 직접 지정도 시도 */
-    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:last-child .stButton button,
-    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:last-child button[kind] {
-        min-height: 0 !important;
-        height: auto !important;
-        padding: 4px 10px !important;
-        border-radius: 14px !important;
-        font-size: 0.9rem !important;
+    div[class*="st-key-cardhead_"] .stButton button,
+    div[class*="st-key-cardhead_"] button[kind],
+    div[class*="st-key-cardhead_"] button[data-testid*="baseButton"] {
+        min-height: 26px !important;
+        height: 26px !important;
+        padding: 2px 12px !important;
+        border-radius: 13px !important;
+        font-size: 0.75rem !important;
         line-height: 1 !important;
-        font-weight: 700 !important;
+        font-weight: 600 !important;
+        width: auto !important;
+        flex-shrink: 0 !important;
+    }
+    /* ★ 스크랩됨 표시도 한 줄 유지 */
+    div[class*="st-key-cardhead_"] div[style*="스크랩됨"] {
+        white-space: nowrap !important;
     }
 
     /* 사이드바 완전 숨김 (모든 컨트롤 메인 영역으로 이동) */
