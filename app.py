@@ -79,6 +79,40 @@ st.markdown(
     }
     .stars { color: #F59E0B; }
 
+    /* 카드 헤더 한 줄 레이아웃 (모바일 포함) */
+    .card-header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+    .category-tag.warn {
+        background: #FEF3C7 !important;
+        color: #92400E !important;
+    }
+    .saved-pill {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        background: #D1FAE5;
+        color: #065F46;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .link-pill {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        background: #E5E7EB;
+        color: #374151 !important;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-decoration: none !important;
+        margin-left: auto; /* 오른쪽 끝으로 */
+    }
+    .link-pill:hover { background: #D1D5DB; }
+
     /* 사이드바 완전 숨김 (모든 컨트롤 메인 영역으로 이동) */
     section[data-testid="stSidebar"] { display: none !important; }
     div[data-testid="collapsedControl"] { display: none !important; }
@@ -459,34 +493,31 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
     engagement = item.get("engagement", "")
     url = item.get("url", "")
 
+    is_saved = storage.is_saved(url) if url else False
+
     with st.container(border=True):
-        # 헤더: [뱃지들] .... [★ 저장] [🔗 원문]
-        header_l, header_r = st.columns([5, 2])
-        with header_l:
-            st.markdown(badge, unsafe_allow_html=True)
-        with header_r:
-            # 작은 아이콘 버튼 2개 배치
-            btn_c1, btn_c2 = st.columns(2)
-            if show_save:
-                already = storage.is_saved(url) if url else False
-                if already:
-                    btn_c1.markdown(
-                        "<div style='text-align:right; font-size:1rem; padding-top:2px;'>"
-                        "✅</div>",
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    if btn_c1.button("★", key=f"{key_prefix}_save", help="저장"):
-                        if storage.add_item(item):
-                            st.toast("저장됨", icon="⭐")
-                            st.rerun()
-            if url:
-                btn_c2.markdown(
-                    f'<div style="text-align:right; padding-top:4px;">'
-                    f'<a href="{url}" target="_blank" title="원문 보기" '
-                    f'style="font-size:1rem; text-decoration:none;">🔗</a></div>',
-                    unsafe_allow_html=True,
-                )
+        # 헤더: 순수 HTML flex row — 플랫폼 뱃지, 카테고리, (메타없음), ✅저장됨, 🔗원문
+        # 모바일에서도 wrap되며 가로 레이아웃 유지
+        header_bits = [
+            f'<span class="platform-badge" style="background:{color};">{source}</span>',
+            f'<span class="category-tag">{category}</span>',
+        ]
+        if not has_meta:
+            header_bits.append(
+                '<span class="category-tag warn" title="조회/추천/댓글 수치 없음">'
+                '⚠️ 메타없음</span>'
+            )
+        if is_saved:
+            header_bits.append('<span class="saved-pill">✅ 저장됨</span>')
+        if url:
+            header_bits.append(
+                f'<a href="{url}" target="_blank" class="link-pill" title="원문 보기">'
+                f'🔗 원문</a>'
+            )
+        st.markdown(
+            '<div class="card-header">' + "".join(header_bits) + '</div>',
+            unsafe_allow_html=True,
+        )
 
         if url:
             st.markdown(f'<div class="item-title"><a href="{url}" target="_blank">{title}</a></div>',
@@ -530,6 +561,13 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                             st.session_state.results[i] = analyzed
                             break
                 st.rerun()
+
+        # 저장 버튼 — 저장 전일 때만 카드 하단에 표시
+        if show_save and url and not is_saved:
+            if st.button("★ 저장", key=f"{key_prefix}_save", use_container_width=False):
+                if storage.add_item(item):
+                    st.toast("저장됨", icon="⭐")
+                    st.rerun()
 
 
 # ---------------------------------------------------------------------------
