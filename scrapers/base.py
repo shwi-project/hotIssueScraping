@@ -478,8 +478,57 @@ class BaseScraper(ABC):
         return out
 
     # ------------------------------------------------------------------
-    # 범용 링크 휴리스틱
+    # RSS / 모바일 fallback 헬퍼
     # ------------------------------------------------------------------
+    @staticmethod
+    def _fetch_rss(url: str, limit: int, source: str) -> list[dict]:
+        """RSS URL에서 feedparser 로 항목 추출. 실패 시 빈 리스트."""
+        try:
+            import feedparser
+            feed = feedparser.parse(url)
+            if getattr(feed, "bozo", 0) and not feed.entries:
+                return []
+            items: list[dict] = []
+            for entry in feed.entries[:limit]:
+                title = entry.get("title", "")
+                link = entry.get("link", "")
+                if not title or not link:
+                    continue
+                summary = entry.get("summary", "") or entry.get("description", "")
+                # HTML 태그 제거
+                if "<" in summary:
+                    summary = re.sub(r"<[^>]+>", " ", summary)
+                summary = re.sub(r"\s+", " ", summary).strip()[:300]
+                items.append({
+                    "title": title,
+                    "url": link,
+                    "summary": summary,
+                    "source": source,
+                    "engagement": "RSS",
+                    "score": 0,
+                    "views": 0,
+                    "comments": 0,
+                })
+            return items
+        except Exception as exc:  # noqa: BLE001
+            logger.info("[%s] RSS 실패 (%s): %s", source, url, exc)
+            return []
+
+    def _try_urls(self, urls: list[str], limit: int) -> list[dict]:
+        """여러 URL을 순차 시도, 첫 성공의 결과 반환."""
+        for u in urls:
+            try:
+                html = self.fetch(u)
+                items = self.parse(html)
+                if not items:
+                    items = self._heuristic_parse(html)
+                if items:
+                    return items
+            except Exception as exc:  # noqa: BLE001
+                logger.info("[%s] %s 실패: %s", self.source, u, exc)
+        return []
+
+
     def _heuristic_parse(self, html: str) -> list[dict]:
         """스크래퍼 parse()가 0건일 때 fallback.
 

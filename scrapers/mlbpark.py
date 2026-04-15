@@ -39,6 +39,36 @@ class MlbparkScraper(BaseScraper):
     base_url = "https://mlbpark.donga.com/mp/b.php?b=bullpen&m=bbs&p=1&s=2"
     category = "이슈/뉴스"
 
+    # RSS 피드 후보 (MLB파크 불펜)
+    RSS_URLS = [
+        "https://mlbpark.donga.com/mp/rss.php?b=bullpen",
+        "https://mlbpark.donga.com/rss/bullpen.xml",
+    ]
+    # 모바일 fallback
+    FALLBACK_URLS = [
+        "https://m.mlbpark.donga.com/mp/bullpen.php",
+        "https://mlbpark.donga.com/mp/b.php?b=bullpen",
+    ]
+
+    def get_trending(self, limit: int = 10) -> list[dict]:
+        self.last_error = ""
+        for rss in self.RSS_URLS:
+            rss_items = self._fetch_rss(rss, limit, self.source)
+            if rss_items:
+                # RSS엔 카테고리 말머리가 title에 prefix로 올 수 있음 → clean_title 자동 적용
+                return [self._normalize(it) for it in rss_items]
+        # 기본 URL 시도
+        parent_items = super().get_trending(limit)
+        if parent_items:
+            return parent_items
+        # 모바일 fallback
+        fb_items = self._try_urls(self.FALLBACK_URLS, limit)
+        if fb_items:
+            return [self._normalize(it) for it in fb_items[:limit]]
+        if not self.last_error:
+            self.last_error = "RSS/모바일/데스크톱 모두 실패"
+        return []
+
     def parse(self, html: str) -> list[dict]:
         soup = self.soup(html)
         items: list[dict] = []
