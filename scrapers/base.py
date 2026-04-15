@@ -238,9 +238,11 @@ class BaseScraper(ABC):
         "불법촬영물등 신고", "불법촬영물 신고", "불법 촬영물",
         "광고/제휴", "광고·제휴", "광고ㆍ제휴", "광고 제휴",
         "제휴문의", "제휴 문의", "광고문의", "광고 문의", "제안문의",
-        "자주묻는질문", "자주 묻는 질문", "자주묻는 질문", "FAQ",
+        "자주묻는질문", "자주 묻는 질문", "자주묻는 질문",
         "회사소개", "회사 소개", "사이트맵", "사이트 맵",
-        "고객센터", "고객 센터", "신고안내", "신고 안내",
+        "신고안내", "신고 안내",
+        # '고객센터', 'FAQ'는 일반 불만글/질문글 제목에도 흔해서 제거
+        # (footer 내 이런 링크는 BaseScraper.soup() 의 footer 제거로 이미 차단됨)
     ]
     #: 제목/요약에서 발견되면 광고/모집글로 간주 (substring 검색)
     AD_KEYWORDS: list[str] = [
@@ -277,7 +279,35 @@ class BaseScraper(ABC):
         "설치전날", "선지급", "뽐뿌점수", "활동점수",
         "카드업체", "포인트 지급", "포인트지급",
         "신한카드", "삼성카드", "KB카드", "현대카드",
+        # 성지/직영점/한정 이벤트성 광고
+        "성지점", "휴대폰성지", "휴대폰 성지",
+        "직영점", "본사 직영", "공식판매점", "공식 판매점",
+        "공식인증점", "공인대리점", "인증대리점",
+        "한정수량", "한정 수량", "한정판매", "한정 판매",
+        "선착순", "수량 한정", "사은품 증정", "사은품증정",
+        "특별할인", "특별 할인", "파격할인", "파격 할인",
+        "최저가 보장", "최저가보장",
+        # 혜택/현금지급 강조
+        "현금 혜택", "현금혜택", "현금 사은품",
+        "가입 혜택", "가입혜택", "신규가입", "신규 가입",
+        "가입시", "가입 시 혜택",
+        "추가 할인", "추가할인", "제휴 할인", "제휴할인",
+        # 계약/장기 약정
+        "3년 약정", "3년약정", "2년 약정", "2년약정",
+        "결합 약정", "결합약정",
     ]
+    #: 통신 3사 브랜드 (제목에 2개 이상 나오면 광고로 판정)
+    _TELCO_REGEX = __import__("re").compile(
+        r"\b(?:SKT|SK\s*텔레콤|SK\s*브로드밴드|KT|KTF|KT올레|올레KT|"
+        r"LG\s*U\s*\+?|LGU\s*\+?|LG유플러스|유플러스)\b"
+    )
+
+    #: 렌탈/가전 브랜드 (2개 이상 나열되면 비교광고/렌탈몰로 판정)
+    _RENTAL_BRANDS = (
+        "코웨이", "청호나이스", "쿠쿠", "SK매직", "LG전자", "삼성전자",
+        "현대렌탈", "현대렌털", "현대백화점", "교원웰스", "웰스", "바디프랜드",
+        "쿠첸", "위닉스", "동양매직", "동양렌탈", "교원",
+    )
     #: 제목이 이런 접미사로 끝나면 '게시판 네비게이션 링크'로 간주
     NAV_SUFFIXES: tuple[str, ...] = (
         "게시판", "광장", "마당", "포털", "포럼", "플라자",
@@ -311,8 +341,36 @@ class BaseScraper(ABC):
                 or title_upper.startswith("[AD]") or title_upper.startswith("(AD)")):
             return True
 
-        # 0-d) 해시태그 도배 — 제목에 # 3개 이상이면 광고 (길이 150자 이내)
+        # 0-d) 해시태그 도배 — 제목에 # 3개 이상이면 광고 (길이 180자 이내)
         if title.count("#") >= 3 and len(title) < 180:
+            return True
+
+        # 0-e) 통신 3사 브랜드 2개 이상 + 통신 문맥 → 통신/인터넷 광고
+        import re as _re
+        telco_matches = self._TELCO_REGEX.findall(title)
+        telco_set = {m.strip().upper().replace(" ", "") for m in telco_matches}
+        # 이미 매칭된 부분 제거 후 단독 브랜드(SK/KT/LG) 추가 계산 (중복 방지)
+        remaining = self._TELCO_REGEX.sub(" ", title)
+        simple_brands = set(_re.findall(r"\b(?:SK|KT|LG)\b", remaining))
+        total_brands = len(telco_set) + len(simple_brands)
+
+        telco_context_words = (
+            "인터넷", "통신", "휴대폰", "모바일", "개통", "가입", "약정",
+            "요금", "결합", "청약", "알뜰폰", "와이파이", "wifi", "TV",
+        )
+        low = title.lower()
+        has_telco_context = any(w.lower() in low for w in telco_context_words)
+        if total_brands >= 2 and has_telco_context:
+            return True
+        # 정식 통신사명(SKT/LGU+/유플러스 등) 2개 이상은 문맥 없어도 광고
+        strict_names = {"SKT", "LGU+", "LGU", "LG유플러스", "유플러스",
+                         "SK텔레콤", "SK브로드밴드", "KTF", "KT올레", "올레KT"}
+        if len(telco_set & strict_names) >= 2:
+            return True
+
+        # 0-f) 렌탈/가전 브랜드 2개 이상 나열 → 비교광고/렌탈몰
+        brand_count = sum(1 for b in self._RENTAL_BRANDS if b in title)
+        if brand_count >= 2:
             return True
 
         # 1) 정규식 — 대괄호/괄호 내 공지성 단어 ([보안안내], [운영공지] 등)
