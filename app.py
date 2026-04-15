@@ -152,8 +152,8 @@ st.markdown(
     /* 카드 헤더 우측 컬럼 (저장 버튼 자리)만 폭 제한 + 시각적 축소 */
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child,
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child {
-        max-width: 50px !important;
-        min-width: 30px !important;
+        max-width: 95px !important;
+        min-width: 70px !important;
         flex: 0 0 auto !important;
     }
     /* 그 컬럼 안의 모든 버튼/요소 transform으로 축소 (specificity 회피) */
@@ -417,7 +417,7 @@ st.caption(
 # 네비게이션 (가로 래디오 — tab보다 모바일에 안정적)
 _page = st.radio(
     "페이지",
-    ["📊 결과", "★ 저장", "📈 분석", "⚙️ 설정"],
+    ["📊 결과", "★ 스크랩", "📈 분석", "⚙️ 설정"],
     horizontal=True,
     label_visibility="collapsed",
     key="page_nav",
@@ -554,7 +554,7 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
     with st.container(border=True):
         # 헤더: 좌측 뱃지 row + 우측 ★/✅ 버튼 (key로 CSS scope)
         with st.container(key=f"cardhead_{key_prefix}"):
-            head_l, head_r = st.columns([8, 1])
+            head_l, head_r = st.columns([4, 1])
             with head_l:
                 header_bits = [
                     f'<span class="platform-badge" style="background:{color};">{source}</span>',
@@ -573,24 +573,25 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                 if show_save and url:
                     if is_saved:
                         st.markdown(
-                            "<div style='text-align:right;font-size:1rem;padding-top:2px;'>"
-                            "✅</div>",
+                            "<div style='text-align:right;font-size:0.78rem;"
+                            "color:#065F46;padding-top:4px;white-space:nowrap;'>"
+                            "✅ 스크랩됨</div>",
                             unsafe_allow_html=True,
                         )
                     else:
                         # tertiary 타입(border 없음, 더 작음) 우선 시도
                         try:
                             clicked = st.button(
-                                "★", key=f"{key_prefix}_save",
-                                help="저장", type="tertiary",
+                                "★ 스크랩", key=f"{key_prefix}_save",
+                                help="이 항목을 스크랩", type="tertiary",
                             )
                         except (TypeError, ValueError):
                             clicked = st.button(
-                                "★", key=f"{key_prefix}_save", help="저장",
+                                "★ 스크랩", key=f"{key_prefix}_save", help="스크랩",
                             )
                         if clicked:
                             if storage.add_item(item):
-                                st.toast("저장됨", icon="⭐")
+                                st.toast("스크랩됨", icon="⭐")
                                 st.rerun()
 
         if url:
@@ -771,11 +772,11 @@ if _page == "📊 결과":
             with cols[idx % 3]:
                 render_card(item, key_prefix=f"res_{idx}")
 
-# ===== ★ 저장된 소재 =====
-elif _page == "★ 저장":
+# ===== ★ 스크랩 =====
+elif _page == "★ 스크랩":
     saved_items = storage.load_all()
     sc1, sc2, sc3 = st.columns([2, 1, 1])
-    sc1.markdown(f"### 저장된 소재 ({len(saved_items)}건)")
+    sc1.markdown(f"### 스크랩된 소재 ({len(saved_items)}건)")
 
     if saved_items:
         sc2.download_button(
@@ -820,7 +821,7 @@ elif _page == "★ 저장":
                     if item.get("engagement"):
                         st.caption(f"📊 {item['engagement']}")
                     if item.get("saved_at"):
-                        st.caption(f"💾 저장: {item['saved_at'][:19]}")
+                        st.caption(f"💾 스크랩: {item['saved_at'][:19]}")
 
                     analysis = item.get("analysis")
                     if analysis:
@@ -848,7 +849,7 @@ elif _page == "★ 저장":
                         storage.remove_item(url)
                         st.rerun()
     else:
-        st.info("아직 저장된 소재가 없어요. 수집 결과 탭에서 ★ 버튼으로 저장해보세요.")
+        st.info("아직 스크랩한 소재가 없어요. 수집 결과에서 **★ 스크랩** 버튼을 눌러 담아보세요.")
 
 # ===== 📈 트렌드 분석 =====
 elif _page == "📈 분석":
