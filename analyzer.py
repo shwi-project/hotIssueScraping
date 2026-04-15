@@ -5,7 +5,7 @@ import json
 import logging
 from typing import Any
 
-from config import ANALYZE_BATCH_SIZE, ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+from config import ANALYZE_BATCH_SIZE, ANTHROPIC_MODEL, get_anthropic_key
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +73,13 @@ def _strip_code_fence(text: str) -> str:
 
 
 def _get_client():
-    """Anthropic 클라이언트 생성 (키 없으면 None)."""
-    if not ANTHROPIC_API_KEY:
+    """Anthropic 클라이언트 생성 (키 없으면 None). 호출 시점에 키 조회."""
+    api_key = get_anthropic_key()
+    if not api_key:
         return None
     try:
         import anthropic
-        return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        return anthropic.Anthropic(api_key=api_key)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Anthropic 클라이언트 초기화 실패: %s", exc)
         return None
@@ -195,5 +196,5 @@ def analyze_single(item: dict) -> dict:
 
 
 def is_available() -> bool:
-    """Anthropic 키가 설정돼 있는지 확인."""
-    return bool(ANTHROPIC_API_KEY)
+    """Anthropic 키가 설정돼 있는지 확인 (호출 시점에 동적으로)."""
+    return bool(get_anthropic_key())

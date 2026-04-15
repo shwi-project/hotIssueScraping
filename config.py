@@ -17,6 +17,25 @@ load_dotenv(BASE_DIR / ".env")
 # ---------------------------------------------------------------------------
 ANTHROPIC_API_KEY: str | None = os.getenv("ANTHROPIC_API_KEY")
 
+
+def get_anthropic_key() -> str | None:
+    """현재 유효한 Anthropic API 키를 반환. 우선순위:
+    1) os.environ["ANTHROPIC_API_KEY"] (앱 실행 중 UI에서 입력 시 여기에 저장)
+    2) Streamlit secrets (배포 환경)
+    3) .env 파일 값 (import 시점에 로드됨)
+    """
+    env_val = os.getenv("ANTHROPIC_API_KEY")
+    if env_val:
+        return env_val
+    # Streamlit secrets (있을 때만)
+    try:
+        import streamlit as st
+        if "ANTHROPIC_API_KEY" in st.secrets:
+            return st.secrets["ANTHROPIC_API_KEY"]
+    except Exception:  # noqa: BLE001
+        pass
+    return ANTHROPIC_API_KEY
+
 # ---------------------------------------------------------------------------
 # 스크래핑 파라미터
 # ---------------------------------------------------------------------------

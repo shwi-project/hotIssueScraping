@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 
-from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+from config import ANTHROPIC_MODEL, get_anthropic_key
 
 from .base import BaseScraper
 
@@ -26,16 +26,17 @@ class ThreadsScraper(BaseScraper):
 
     def get_trending(self, limit: int = 10) -> list[dict]:
         self.last_error = ""
-        if not ANTHROPIC_API_KEY:
+        api_key = get_anthropic_key()
+        if not api_key:
             self.last_error = "ANTHROPIC_API_KEY 없음 (Threads는 AI 기반 수집만 지원)"
             return []
-        items = self._fetch_via_claude(limit)
+        items = self._fetch_via_claude(limit, api_key)
         if not items and not self.last_error:
             self.last_error = "Claude 응답 파싱 실패"
         return items
 
     # ------------------------------------------------------------------
-    def _fetch_via_claude(self, limit: int) -> list[dict]:
+    def _fetch_via_claude(self, limit: int, api_key: str) -> list[dict]:
         try:
             import anthropic
         except ImportError:
@@ -43,7 +44,7 @@ class ThreadsScraper(BaseScraper):
             return []
 
         try:
-            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            client = anthropic.Anthropic(api_key=api_key)
             prompt = (
                 f"지금 한국 Threads(스레드)에서 가장 많이 언급되는 인기 주제/포스트 "
                 f"{limit}개를 찾아줘. JSON 배열로만 답하고 각 항목은 "

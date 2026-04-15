@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -262,44 +263,7 @@ with st.sidebar:
     run_btn = st.button("🔍 인기글 수집", type="primary", use_container_width=True)
 
     st.divider()
-    with st.expander("⚙️ API 키 설정 가이드", expanded=False):
-        st.markdown(
-            """
-**현재 앱이 사용하는 API 키는 1개입니다.**
-
-### 🔑 `ANTHROPIC_API_KEY`  _(필수 기능 한정)_
-- **형식**: `sk-ant-api03-XXXXXXXXXX…` (약 108자)
-- **발급**: [console.anthropic.com](https://console.anthropic.com) → API Keys
-- **용도**
-  - 🤖 AI 분석 (요약·쇼츠 아이디어·해시태그)
-  - 🧵 Threads 수집 (웹 기반 대체)
-  - 🎵 TikTok 수집 (웹 기반 대체)
-- **없어도 되는 기능**: 디시/에펨/더쿠 등 국내 커뮤니티 + Reddit + HN + YouTube RSS 수집은 **키 없이 동작**
-
----
-
-### 🛠️ 로컬에서 설정
-프로젝트 루트의 `.env` 파일에 추가:
-```
-ANTHROPIC_API_KEY=sk-ant-api03-XXXXX...
-```
-
-### ☁️ Streamlit Cloud 배포 시
-앱 관리 → **Settings → Secrets** 에 같은 형식으로 추가:
-```toml
-ANTHROPIC_API_KEY = "sk-ant-api03-XXXXX..."
-```
-
----
-
-### 💡 추후 확장 시 쓸 수 있는 (현재 미사용) 키
-| 키 이름 | 용도 | 형식 |
-|--------|------|------|
-| `YOUTUBE_API_KEY` | YouTube Data API v3 (RSS 대체) | `AIzaSy…` (39자) |
-| `REDDIT_CLIENT_ID` / `REDDIT_SECRET` | Reddit OAuth (레이트 상향) | 무료 등록 |
-| `SCRAPECREATORS_API_KEY` | Threads/TikTok 정식 API | `sk_…` |
-            """
-        )
+    st.caption("⚙️ API 키 / 데이터 출처는 **메인 화면의 '설정' 탭**을 확인하세요.")
 
 
 # ---------------------------------------------------------------------------
@@ -340,10 +304,21 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
     color = get_platform_color(source)
     category = item.get("category", "기타")
 
-    badge = (
-        f'<span class="platform-badge" style="background:{color};">{source}</span>'
-        f'<span class="category-tag">{category}</span>'
-    )
+    # 메타데이터(조회/추천/댓글) 유무 확인 — 인기글 진위 판단 근거
+    has_meta = any(int(item.get(k, 0) or 0) > 0 for k in ("score", "views", "comments"))
+
+    badge_parts = [
+        f'<span class="platform-badge" style="background:{color};">{source}</span>',
+        f'<span class="category-tag">{category}</span>',
+    ]
+    if not has_meta:
+        badge_parts.append(
+            '<span class="category-tag" style="background:#FEF3C7;color:#92400E;" '
+            'title="조회/추천/댓글 수치를 못 가져와서 실제 인기글 여부가 불확실해요">'
+            '⚠️ 메타없음</span>'
+        )
+    badge = "".join(badge_parts)
+
     title = item.get("title", "(제목 없음)")
     engagement = item.get("engagement", "")
     url = item.get("url", "")
@@ -357,6 +332,12 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
             st.markdown(f'<div class="item-title">{title}</div>', unsafe_allow_html=True)
         if engagement:
             st.markdown(f'<div class="item-meta">📊 {engagement}</div>', unsafe_allow_html=True)
+        elif not has_meta:
+            st.markdown(
+                '<div class="item-meta" style="color:#92400E;">'
+                '⚠️ 추천/조회/댓글 수치 없음 — 원문 확인 권장</div>',
+                unsafe_allow_html=True,
+            )
         if item.get("thumbnail"):
             st.image(item["thumbnail"], use_container_width=True)
 
@@ -406,19 +387,33 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
 # ---------------------------------------------------------------------------
 # 메인 — 탭 구성
 # ---------------------------------------------------------------------------
-tab_results, tab_saved, tab_analysis = st.tabs(
-    ["📊 수집 결과", "★ 저장된 소재", "📈 트렌드 분석"]
+tab_results, tab_saved, tab_analysis, tab_settings = st.tabs(
+    ["📊 수집 결과", "★ 저장된 소재", "📈 트렌드 분석", "⚙️ 설정"]
 )
 
 # ===== 📊 수집 결과 =====
 with tab_results:
     summary = st.session_state.last_summary
     if summary:
-        c1, c2, c3, c4 = st.columns(4)
+        # 메타데이터 있는 항목 비율 (인기글 진위 판단)
+        with_meta = sum(
+            1 for r in st.session_state.results
+            if any(int(r.get(k, 0) or 0) > 0 for k in ("score", "views", "comments"))
+        )
+        total_items = len(st.session_state.results) or 1
+        meta_pct = int(with_meta / total_items * 100)
+
+        c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("총 수집", f"{summary['total']}건")
         c2.metric("소요 시간", f"{summary['elapsed']:.1f}s")
         c3.metric("성공 플랫폼", f"{len(summary['success'])}")
         c4.metric("실패 플랫폼", f"{len(summary['failed'])}")
+        c5.metric(
+            "메타 보유율",
+            f"{meta_pct}%",
+            help="조회/추천/댓글 수치가 정상 파싱된 항목 비율. "
+                 "낮으면 스크래퍼가 실제 인기글 페이지가 아닌 것을 수집했을 가능성.",
+        )
 
         if summary["failed"]:
             # {key: label} 룩업
@@ -431,11 +426,11 @@ with tab_results:
                 st.error(
                     "**🚨 선택한 모든 플랫폼이 실패했어요.**\n\n"
                     "가능성 높은 원인:\n"
-                    "1. **IP 차단** — 실행 환경(Streamlit Cloud, 공용 IP)이 봇으로 감지돼 차단됨\n"
-                    "2. **회사망 방화벽** — 커뮤니티/SNS가 네트워크 레벨에서 막힘\n"
-                    "3. **사이트 레이아웃 변경** — 스크래퍼 셀렉터 업데이트 필요\n\n"
-                    "**시도해볼 것**: 로컬 PC에서 실행, 다른 네트워크(모바일 데이터/집 Wi-Fi)에서 시도, "
-                    "Reddit·HackerNews·YouTube 같은 상대적으로 덜 막히는 소스만 선택"
+                    "1. **IP 차단** — 실행 환경(Streamlit Cloud 공용 IP 등)이 봇으로 감지돼 차단됨\n"
+                    "2. **사이트 레이아웃 변경** — 스크래퍼 셀렉터 업데이트 필요\n"
+                    "3. **일시적 장애 / 레이트 리밋** — 잠시 후 재시도\n\n"
+                    "**시도해볼 것**: 로컬 PC에서 실행, 수집 건수를 줄여서 재시도, "
+                    "Reddit · Hacker News · YouTube 같은 공개 API 기반 소스만 선택"
                 )
             elif fail_count >= total_selected * 0.5:
                 st.warning(
@@ -455,7 +450,8 @@ with tab_results:
                     )
                 )
                 st.caption(
-                    "💡 자주 보이는 원인: `HTTP 403/429` (봇 차단) · `연결 실패` (회사망 차단 또는 DNS) · "
+                    "💡 자주 보이는 원인: `HTTP 403/429` (봇 차단) · "
+                    "`연결 실패` (사이트 다운 또는 DNS) · "
                     "`파싱 결과 0건` (사이트 레이아웃 변경)"
                 )
 
@@ -657,3 +653,167 @@ with tab_analysis:
                 st.caption("※ 한글 폰트가 없어 한글이 깨질 수 있어요. NanumGothic 설치 권장.")
         except Exception as exc:  # noqa: BLE001
             st.warning(f"워드클라우드 생성 실패: {exc}")
+
+
+# ===== ⚙️ 설정 =====
+with tab_settings:
+    st.header("⚙️ 설정")
+
+    # -----------------------------------------------------------------------
+    # 섹션 1) API 키 관리
+    # -----------------------------------------------------------------------
+    st.subheader("🔑 API 키 관리")
+
+    current_key = os.getenv("ANTHROPIC_API_KEY", "")
+    masked = (
+        f"{current_key[:12]}…{current_key[-4:]}"
+        if current_key and len(current_key) > 20
+        else ("입력됨" if current_key else "미설정")
+    )
+
+    col_k1, col_k2 = st.columns([3, 1])
+    with col_k1:
+        if current_key:
+            st.success(f"✅ ANTHROPIC_API_KEY 설정됨 ({masked})")
+        else:
+            st.error("❌ ANTHROPIC_API_KEY 미설정 — 아래에 입력하세요")
+
+    with col_k2:
+        if current_key and st.button("🗑️ 키 제거", use_container_width=True):
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            st.rerun()
+
+    with st.form("api_key_form", clear_on_submit=True):
+        new_key = st.text_input(
+            "ANTHROPIC_API_KEY 입력",
+            type="password",
+            placeholder="sk-ant-api03-XXXXXXXXXXXX...",
+            help="형식: sk-ant-api03로 시작하는 약 108자 문자열",
+        )
+        submitted = st.form_submit_button("💾 저장", type="primary")
+        if submitted:
+            new_key = (new_key or "").strip()
+            if not new_key:
+                st.warning("키가 비어있어요.")
+            elif not new_key.startswith("sk-ant-"):
+                st.error("형식이 올바르지 않아요. `sk-ant-`로 시작해야 합니다.")
+            else:
+                os.environ["ANTHROPIC_API_KEY"] = new_key
+                st.success("✅ 저장 완료! AI 분석 기능이 활성화됩니다. "
+                           "(이 세션이 끝나면 사라지니, 영구 저장은 아래 방법 참고)")
+                st.rerun()
+
+    st.divider()
+
+    # -----------------------------------------------------------------------
+    # 섹션 2) ANTHROPIC API 키 발급 방법
+    # -----------------------------------------------------------------------
+    st.subheader("📝 ANTHROPIC API 키 발급 및 영구 설정")
+
+    st.markdown(
+        """
+### 🎯 발급 방법 (3분 소요)
+1. <https://console.anthropic.com> 접속 → 계정 생성/로그인
+2. 왼쪽 메뉴 → **API Keys** 클릭
+3. 오른쪽 상단 **Create Key** 버튼 클릭
+4. 키 이름 입력 (예: `shorts-collector`) → **Create Key**
+5. 표시된 키(`sk-ant-api03-…`)를 **즉시 복사** — 창 닫으면 다시 못 봐요
+6. 위 입력창에 붙여넣기 → 저장
+
+> 💡 가입 직후 **무료 크레딧 $5** 제공 (이 앱 용도로는 수천 번 분석 가능)
+
+---
+
+### 🌐 Streamlit Cloud 배포 시 영구 설정
+
+**위 입력창에 저장한 키는 브라우저 세션에서만 유효**합니다.
+배포 후에도 계속 쓰려면 다음 중 하나를 설정하세요.
+
+#### 방법 A — Streamlit Cloud Secrets (권장)
+1. Streamlit Cloud 대시보드 → 배포된 앱 → **⋮ → Settings → Secrets**
+2. 아래 한 줄 붙여넣기:
+   ```toml
+   ANTHROPIC_API_KEY = "sk-ant-api03-XXXXX..."
+   ```
+3. **Save** → 앱 자동 재시작 → 영구 반영
+
+#### 방법 B — 로컬 `.env` 파일
+프로젝트 루트에 `.env` 파일 만들기:
+```
+ANTHROPIC_API_KEY=sk-ant-api03-XXXXX...
+```
+→ `streamlit run app.py` 실행 시 자동 로드됨
+
+---
+
+### 🔒 보안 주의
+- `.env` 파일은 이미 `.gitignore`에 포함 → 실수로 커밋 안 됨
+- 키 유출 의심 시 즉시 [console.anthropic.com](https://console.anthropic.com) → API Keys → **Revoke**
+        """
+    )
+
+    st.divider()
+
+    # -----------------------------------------------------------------------
+    # 섹션 3) 수집 대상 URL (투명성)
+    # -----------------------------------------------------------------------
+    st.subheader("🔍 수집 대상 URL (데이터 출처)")
+    st.caption(
+        "각 플랫폼이 **실제로 어느 페이지에서** 글을 가져오는지 확인하세요. "
+        "링크를 직접 열어보고 '인기글'인지 검증할 수 있습니다."
+    )
+
+    from scrapers import SCRAPER_CLASSES
+    url_rows = []
+    for reg in SCRAPER_REGISTRY:
+        key = reg["key"]
+        cls = SCRAPER_CLASSES.get(key)
+        if cls is None:
+            continue
+        base_url = getattr(cls, "base_url", "")
+        extra = ""
+        if key == "ppomppu":
+            extra = " + 자유게시판 베스트"
+        elif key == "reddit":
+            extra = " + r/korea, r/hanguk"
+        url_rows.append({
+            "그룹": "🇰🇷" if reg["group"] == "kr" else "🌍",
+            "플랫폼": reg["label"],
+            "수집 페이지": base_url + extra,
+        })
+
+    import pandas as _pd
+    url_df = _pd.DataFrame(url_rows)
+    st.dataframe(
+        url_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "수집 페이지": st.column_config.LinkColumn(
+                "수집 페이지 (클릭해서 원본 확인)",
+                display_text=r"https?://([^/]+)(/.*)?",
+            ),
+        },
+    )
+
+    st.info(
+        "💡 **'메타없음' 배지가 많이 보이면** 해당 사이트가 차단·레이아웃 변경됐을 가능성이 높아요. "
+        "위 링크를 직접 열어보고 실제 페이지와 수집 결과를 비교해보세요."
+    )
+
+    st.divider()
+
+    # -----------------------------------------------------------------------
+    # 섹션 4) 추후 확장 시 쓸 수 있는 API 키 (선택)
+    # -----------------------------------------------------------------------
+    with st.expander("💡 추후 확장 시 쓸 수 있는 (현재 미사용) 선택 API 키"):
+        st.markdown(
+            """
+| 키 이름 | 용도 | 형식 예 | 발급처 |
+|--------|------|--------|--------|
+| `YOUTUBE_API_KEY` | YouTube Data API v3 (RSS 대체) | `AIzaSy…` (39자) | Google Cloud Console |
+| `REDDIT_CLIENT_ID` / `REDDIT_SECRET` | Reddit OAuth (레이트 상향) | 무료 등록 | reddit.com/prefs/apps |
+| `SCRAPECREATORS_API_KEY` | Threads/TikTok 정식 API | `sk_…` | scrapecreators.com |
+| `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 검색 트렌드 API | 무료 | developers.naver.com |
+            """
+        )
