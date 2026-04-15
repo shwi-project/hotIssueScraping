@@ -77,18 +77,44 @@ class YoutubeTrendsScraper(BaseScraper):
 
     # ------------------------------------------------------------------
     def _fetch_via_api(self, key: str, limit: int) -> list[dict]:
-        """YouTube Data API v3 — mostPopular, regionCode=KR."""
-        data = self.fetch_json(
+        """YouTube Data API v3 — mostPopular, regionCode=KR.
+
+        cloudscraper 세션 대신 직접 requests 사용 (Google API는 CF 우회 불필요).
+        Referer 헤더도 제거 (API 키에 웹사이트 제한 걸려 있으면 오히려 방해).
+        """
+        import requests as _rq
+        resp = _rq.get(
             self.API_URL,
             params={
                 "part": "snippet,statistics",
                 "chart": "mostPopular",
                 "regionCode": "KR",
-                "maxResults": min(limit, 50),
+                "maxResults": min(max(limit, 10), 50),
                 "key": key,
             },
-            headers={"Referer": "https://www.youtube.com/"},
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "shorts-trend-collector/1.0",
+            },
+            timeout=15,
         )
+        if resp.status_code != 200:
+            # 에러 상세 메시지 추출 (Google API 에러는 JSON body 에 정보 많음)
+            err_reason = "unknown"
+            err_msg = ""
+            try:
+                err_body = resp.json()
+                err_info = err_body.get("error", {})
+                err_msg = err_info.get("message", "")
+                errors_list = err_info.get("errors") or [{}]
+                err_reason = errors_list[0].get("reason", "unknown")
+            except Exception:  # noqa: BLE001 — JSON 파싱 실패 시 raw 텍스트
+                err_msg = resp.text[:200]
+            raise RuntimeError(
+                f"HTTP {resp.status_code} [{err_reason}] {err_msg}"
+            )
+
+        data = resp.json()
         items: list[dict] = []
         for v in data.get("items", [])[:limit]:
             vid = v.get("id", "")
