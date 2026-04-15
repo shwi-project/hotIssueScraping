@@ -151,6 +151,42 @@ class BaseScraper(ABC):
         return BeautifulSoup(html, "lxml")
 
     # ------------------------------------------------------------------
+    # 공지/광고 필터
+    # ------------------------------------------------------------------
+    #: 제목에서 이 키워드/패턴이 발견되면 공지/광고로 간주하고 제외
+    NOTICE_PATTERNS: list[str] = [
+        # 명시적 공지/알림 태그
+        "[공지]", "(공지)", "【공지】", "공지)", "공지]",
+        "[필독]", "(필독)", "[안내]", "(안내)", "[알림]", "(알림)",
+        "[운영]", "[관리]", "[중요]", "[주의]", "[정보]",
+        "[이벤트]", "(이벤트)", "[EVENT]", "[event]",
+        "[광고]", "(광고)", "[AD]", "(AD)", "[ad]", "광고문의",
+        # 영문
+        "notice:", "[notice]", "(notice)",
+    ]
+    #: 제목/요약에서 발견되면 광고/모집글로 간주
+    AD_KEYWORDS: list[str] = [
+        "보험상담", "보험모집", "대출상담", "투자유치", "투자상담",
+        "주식리딩", "리딩방", "종목추천", "코인리딩",
+        "무료상담", "무료진단", "무료체험", "후원금", "기부",
+        "구매대행", "제휴문의", "업체 문의", "업체문의",
+    ]
+
+    def _is_notice_or_ad(self, item: dict) -> bool:
+        """공지/광고/모집글 여부 판단."""
+        title = (item.get("title") or "").strip()
+        if not title:
+            return True  # 빈 제목은 그냥 제외
+        lower = title.lower()
+        for pat in self.NOTICE_PATTERNS:
+            if pat.lower() in lower:
+                return True
+        for kw in self.AD_KEYWORDS:
+            if kw in title:
+                return True
+        return False
+
+    # ------------------------------------------------------------------
     # 파이프라인
     # ------------------------------------------------------------------
     @abstractmethod
@@ -180,6 +216,18 @@ class BaseScraper(ABC):
             self.last_error = f"{type(exc).__name__}: {str(exc)[:120]}"
             logger.warning("[%s] 수집 실패: %s", self.source, exc)
             return []
+
+        # 공지/광고 제거
+        items = [it for it in items if not self._is_notice_or_ad(it)]
+
+        # 추천/조회 내림차순으로 재정렬 (진짜 인기글 먼저)
+        def _popularity(it: dict) -> int:
+            return (
+                int(it.get("score", 0) or 0) * 10
+                + int(it.get("views", 0) or 0) // 100
+                + int(it.get("comments", 0) or 0) * 3
+            )
+        items.sort(key=_popularity, reverse=True)
 
         if not items:
             self.last_error = "파싱 결과 0건 (레이아웃 변경 가능성)"

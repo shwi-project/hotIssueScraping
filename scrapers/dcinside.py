@@ -57,6 +57,11 @@ class DcinsideScraper(BaseScraper):
         return items
 
     def _extract_from_li(self, li) -> dict | None:
+        # 공지 li 제외
+        li_classes = " ".join(li.get("class", [])).lower()
+        if any(k in li_classes for k in ("notice", "noti", "top-notice", "best-notice")):
+            return None
+
         a = li.find("a", href=True)
         if not a:
             return None
