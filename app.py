@@ -101,11 +101,18 @@ st.markdown(
         /* 카드/제목 약간 축소 */
         .item-title { font-size: 0.95rem; }
         .item-card { padding: 10px 12px; }
-        /* 탭 라벨 compact */
+        /* 탭 라벨 compact + 가로 스크롤 보장 */
         button[data-baseweb="tab"] {
-            padding-left: 10px !important;
-            padding-right: 10px !important;
-            font-size: 0.9rem !important;
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+            font-size: 0.85rem !important;
+            min-width: unset !important;
+            flex: 0 0 auto !important;
+        }
+        div[data-baseweb="tab-list"] {
+            overflow-x: auto !important;
+            scrollbar-width: thin;
+            -webkit-overflow-scrolling: touch;
         }
         /* 메트릭도 좁은 화면에서 세로 나열되도록 */
         [data-testid="stMetric"] {
@@ -388,7 +395,7 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
 # 메인 — 탭 구성
 # ---------------------------------------------------------------------------
 tab_results, tab_saved, tab_analysis, tab_settings = st.tabs(
-    ["📊 수집 결과", "★ 저장된 소재", "📈 트렌드 분석", "⚙️ 설정"]
+    ["📊 결과", "★ 저장", "📈 분석", "⚙️ 설정"]
 )
 
 # ===== 📊 수집 결과 =====
