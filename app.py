@@ -132,6 +132,34 @@ st.markdown(
     }
     .link-pill:hover { background: #D1D5DB; }
 
+    /* ★ 카드 헤더 영역 (st.container(key=cardhead_*)) — 좁은 범위 CSS */
+    /* 모바일에서도 가로 유지 + 버튼 작게 (다른 버튼 영향 없음) */
+    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 4px !important;
+    }
+    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"],
+    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        width: auto !important;
+        flex: 0 1 auto !important;
+        min-width: 0 !important;
+    }
+    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:first-child {
+        flex: 1 1 auto !important;
+    }
+    /* 카드 헤더 안의 ★ 버튼만 뱃지 크기로 — 다른 버튼은 원래 크기 */
+    div[class*="st-key-cardhead_"] .stButton > button {
+        min-height: 28px !important;
+        height: 28px !important;
+        padding: 0 10px !important;
+        border-radius: 14px !important;
+        font-size: 0.9rem !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+    }
+
     /* 사이드바 완전 숨김 (모든 컨트롤 메인 영역으로 이동) */
     section[data-testid="stSidebar"] { display: none !important; }
     div[data-testid="collapsedControl"] { display: none !important; }
@@ -508,22 +536,37 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
     is_saved = storage.is_saved(url) if url else False
 
     with st.container(border=True):
-        # 헤더: HTML flex row — [플랫폼 뱃지][카테고리][(메타없음)][(✅저장됨)]
-        header_bits = [
-            f'<span class="platform-badge" style="background:{color};">{source}</span>',
-            f'<span class="category-tag">{category}</span>',
-        ]
-        if not has_meta:
-            header_bits.append(
-                '<span class="category-tag warn" title="조회/추천/댓글 수치 없음">'
-                '⚠️ 메타없음</span>'
-            )
-        if is_saved:
-            header_bits.append('<span class="saved-pill">✅ 저장됨</span>')
-        st.markdown(
-            '<div class="card-header">' + "".join(header_bits) + '</div>',
-            unsafe_allow_html=True,
-        )
+        # 헤더: 좌측 뱃지 row + 우측 ★/✅ 버튼 (key로 CSS scope)
+        with st.container(key=f"cardhead_{key_prefix}"):
+            head_l, head_r = st.columns([8, 1])
+            with head_l:
+                header_bits = [
+                    f'<span class="platform-badge" style="background:{color};">{source}</span>',
+                    f'<span class="category-tag">{category}</span>',
+                ]
+                if not has_meta:
+                    header_bits.append(
+                        '<span class="category-tag warn" title="조회/추천/댓글 수치 없음">'
+                        '⚠️ 메타없음</span>'
+                    )
+                st.markdown(
+                    '<div class="card-header">' + "".join(header_bits) + '</div>',
+                    unsafe_allow_html=True,
+                )
+            with head_r:
+                if show_save and url:
+                    if is_saved:
+                        st.markdown(
+                            "<div style='text-align:right;font-size:1rem;padding-top:2px;'>"
+                            "✅</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        if st.button("★", key=f"{key_prefix}_save",
+                                     help="저장", use_container_width=True):
+                            if storage.add_item(item):
+                                st.toast("저장됨", icon="⭐")
+                                st.rerun()
 
         if url:
             st.markdown(f'<div class="item-title"><a href="{url}" target="_blank">{title}</a></div>',
@@ -569,16 +612,6 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                             st.session_state.results[i] = analyzed
                             break
                 st.rerun()
-
-        # 저장 버튼 — 저장 안 된 경우만, 카드 우측 하단에 작게
-        if show_save and url and not is_saved:
-            sc1, sc2 = st.columns([3, 1])
-            with sc2:
-                if st.button("★ 저장", key=f"{key_prefix}_save",
-                             use_container_width=True):
-                    if storage.add_item(item):
-                        st.toast("저장됨", icon="⭐")
-                        st.rerun()
 
 
 # ---------------------------------------------------------------------------
