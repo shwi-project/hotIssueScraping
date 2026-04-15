@@ -225,6 +225,11 @@ class BaseScraper(ABC):
         "서비스 안내", "서비스안내", "점검 안내", "점검안내",
         "안내드립니다", "알려드립니다", "공지합니다", "공지사항",
         "이용약관", "이용 약관", "가이드라인",
+        # 업데이트/점검/운영 공지 (MLB파크 등)
+        "업데이트 안내", "업데이트안내", "시즌 업데이트", "시즌업데이트",
+        "말머리 위반", "말머리위반", "말머리 가이드", "말머리가이드",
+        "처리 예정", "처리예정", "진행 예정 사항", "진행예정 사항", "예정 사항",
+        "향후 진행", "운영 공지", "운영공지",
         # 사이트 법적/정책 문서 (뽐뿌 등 footer에서 자주 등장)
         "개인정보처리방침", "개인정보 처리방침", "개인정보취급방침",
         "청소년보호정책", "청소년 보호정책", "청소년보호 정책",
@@ -266,6 +271,12 @@ class BaseScraper(ABC):
         "방문 상담", "방문상담", "전화 상담", "전화상담",
         "할부 가능", "약정 할인", "무료 가입", "무료가입",
         "캐시백", "현금 지급", "현금지급", "사은품 증정", "사은품증정",
+        # 뽐뿌 특화 광고 (screenshots에서 통과하던 케이스들)
+        "렌탈몰", "종합가전", "본사직영", "최고혜택", "비교불가",
+        "신규입점", "후기이벤트", "24시간상담", "24시간 상담",
+        "설치전날", "선지급", "뽐뿌점수", "활동점수",
+        "카드업체", "포인트 지급", "포인트지급",
+        "신한카드", "삼성카드", "KB카드", "현대카드",
     ]
     #: 제목이 이런 접미사로 끝나면 '게시판 네비게이션 링크'로 간주
     NAV_SUFFIXES: tuple[str, ...] = (
@@ -284,6 +295,25 @@ class BaseScraper(ABC):
         title = (item.get("title") or "").strip()
         if not title:
             return True  # 빈 제목은 제외
+
+        # 0-a) 너무 짧은 제목 — 공백/탭/중점 제거 후 실제 글자 4자 미만
+        # ('VS', 'IT', '문화', '해축', '5108' 같은 말머리/카테고리/ID)
+        stripped = "".join(c for c in title if c not in " \t·ㆍ/-_")
+        if len(stripped) < 4:
+            return True
+        # 0-b) 제목이 숫자만으로 이루어져 있음 (게시글 ID 잘못 파싱)
+        if stripped.isdigit():
+            return True
+
+        # 0-c) AD 접두어 — 'AD ...', '[AD]...', '(AD)...'
+        title_upper = title.upper()
+        if (title_upper.startswith("AD ") or title_upper.startswith("AD:")
+                or title_upper.startswith("[AD]") or title_upper.startswith("(AD)")):
+            return True
+
+        # 0-d) 해시태그 도배 — 제목에 # 3개 이상이면 광고 (길이 150자 이내)
+        if title.count("#") >= 3 and len(title) < 180:
+            return True
 
         # 1) 정규식 — 대괄호/괄호 내 공지성 단어 ([보안안내], [운영공지] 등)
         if self._NOTICE_REGEX.search(title):

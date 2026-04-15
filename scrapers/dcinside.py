@@ -72,7 +72,9 @@ class DcinsideScraper(BaseScraper):
             or a
         )
         title = title_tag.get_text(" ", strip=True)
-        if not title or len(title) < 3:
+        # 숫자만인 제목(게시글 ID)이나 8자 미만은 제외 — 말머리/카테고리/ID
+        stripped = "".join(c for c in title if c not in " \t·ㆍ/-_")
+        if not title or len(stripped) < 6 or stripped.isdigit():
             return None
         url = urljoin("https://m.dcinside.com", href)
 

@@ -1,9 +1,18 @@
-"""MLB파크 불펜 추천순 스크래퍼."""
+"""MLB파크 불펜 인기글 스크래퍼.
+
+MLB파크 HTML 특징:
+- 게시글 URL: `/mp/bbs_view.php?b=bullpen&id=숫자` (id=숫자 필수)
+- 말머리(카테고리) 링크: `/mp/b.php?b=bullpen&c=카테고리명` (숫자 아님)
+  → 말머리는 '야구', 'IT', '문화', 'VS' 등 짧은 텍스트라 필터에서도 걸러짐
+"""
 from __future__ import annotations
 
+import re
 from urllib.parse import urljoin
 
 from .base import BaseScraper
+
+_ARTICLE_RE = re.compile(r"bbs_view\.php.*(?:id|b_id)=\d+", re.I)
 
 
 class MlbparkScraper(BaseScraper):
@@ -15,38 +24,101 @@ class MlbparkScraper(BaseScraper):
         soup = self.soup(html)
         items: list[dict] = []
 
-        for row in soup.select("table.tbl_type01 tbody tr, table tbody tr"):
-            a = row.select_one("td.t_left a, a.bulletlink, td.title a")
-            if not a:
-                a = row.find("a", href=True)
-            if not a:
-                continue
-            title = a.get_text(" ", strip=True)
-            href = a.get("href") or ""
-            if not title or not href:
-                continue
-            url = urljoin("https://mlbpark.donga.com/mp/", href)
+        # 모든 tr 중 말머리·광고 제외, 실제 게시글만
+        for tr in soup.select("table tr"):
+            parsed = self._extract_from_tr(tr)
+            if parsed:
+                items.append(parsed)
 
-            score = views = comments = 0
-            tds = [td.get_text(strip=True) for td in row.find_all("td")]
-            nums = [self.to_int(t) for t in tds if t and any(c.isdigit() for c in t)]
-            nums = [n for n in nums if n]
-            if len(nums) >= 2:
-                views, score = nums[-2], nums[-1]
+        # 1차 결과 부족 시 link-heuristic
+        if len(items) < 3:
+            seen: set[str] = set()
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                if not _ARTICLE_RE.search(href):
+                    continue
+                title = a.get_text(" ", strip=True)
+                if not title or len(title) < 8:
+                    continue
+                if href in seen:
+                    continue
+                seen.add(href)
+                url = href if href.startswith("http") else urljoin(
+                    "https://mlbpark.donga.com/mp/", href
+                )
 
-            cmt = row.select_one("span.replycnt, span.cmtCnt")
-            if cmt:
-                comments = self.to_int(cmt.get_text())
+                # 부모에서 메타 추출
+                parent = a.find_parent(["tr", "li", "div"])
+                score = views = comments = 0
+                if parent:
+                    ptxt = parent.get_text(" ", strip=True)
+                    nums = [self.to_int(n) for n in re.findall(r"[\d,]+", ptxt)]
+                    nums = [n for n in nums if n > 0]
+                    if nums:
+                        # MLB파크는 [추천, 조회, 댓글] 순서일 때가 많음
+                        nums_sorted = sorted(nums, reverse=True)
+                        if len(nums_sorted) >= 1:
+                            views = nums_sorted[0]
+                        if len(nums_sorted) >= 2 and nums_sorted[1] < views // 2:
+                            score = nums_sorted[1]
 
-            items.append({
-                "title": title,
-                "url": url,
-                "score": score,
-                "views": views,
-                "comments": comments,
-                "engagement": self.format_engagement(score=score, views=views, comments=comments),
-            })
-
-            if len(items) >= 40:
-                break
+                items.append({
+                    "title": title,
+                    "url": url,
+                    "score": score,
+                    "views": views,
+                    "comments": comments,
+                    "engagement": self.format_engagement(
+                        score=score, views=views, comments=comments
+                    ),
+                })
+                if len(items) >= 40:
+                    break
         return items
+
+    def _extract_from_tr(self, tr) -> dict | None:
+        # 공지 row 제외
+        cls = " ".join(tr.get("class", [])).lower()
+        if any(k in cls for k in ("notice", "noti", "top", "ad")):
+            return None
+
+        # 제목 링크: href가 bbs_view.php + id=숫자 포함이어야 함
+        title_link = None
+        for a in tr.find_all("a", href=True):
+            if _ARTICLE_RE.search(a["href"]):
+                # 말머리 텍스트는 제외하기 위해, 텍스트 길이 8자 이상인 a만
+                text = a.get_text(" ", strip=True)
+                if len(text) >= 8:
+                    title_link = a
+                    break
+
+        if not title_link:
+            return None
+
+        title = title_link.get_text(" ", strip=True)
+        href = title_link.get("href") or ""
+        url = href if href.startswith("http") else urljoin(
+            "https://mlbpark.donga.com/mp/", href
+        )
+
+        score = views = comments = 0
+        tds = [td.get_text(" ", strip=True) for td in tr.find_all("td")]
+        nums = [self.to_int(t) for t in tds if t]
+        nums = [n for n in nums if 0 < n < 10_000_000]
+        if len(nums) >= 2:
+            views, score = max(nums), sorted(nums)[-2]
+
+        cmt = tr.select_one("span.replycnt, span.cmtCnt, span.cmt")
+        if cmt:
+            comments = self.to_int(cmt.get_text())
+
+        return {
+            "title": title,
+            "url": url,
+            "score": score,
+            "views": views,
+            "comments": comments,
+            "engagement": self.format_engagement(
+                score=score, views=views, comments=comments
+            ),
+        }
