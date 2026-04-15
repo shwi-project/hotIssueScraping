@@ -104,14 +104,12 @@ SAVED_IDEAS_PATH: Path = BASE_DIR / "saved_ideas.json"
 # ---------------------------------------------------------------------------
 SCRAPER_REGISTRY: list[dict] = [
     # 🇰🇷 국내 커뮤니티 — 모두 기본 ON
+    # (아카라이브/더쿠/에펨코리아 제거 — Cloudflare/자체 방화벽으로 Streamlit Cloud에서 접근 불가)
     {"key": "dcinside",   "label": "디시인사이드",  "group": "kr", "default": True, "color": "#1D5A8E"},
-    {"key": "fmkorea",    "label": "에펨코리아",    "group": "kr", "default": True, "color": "#2563EB"},
     {"key": "ppomppu",    "label": "뽐뿌",          "group": "kr", "default": True, "color": "#FF6B00"},
     {"key": "ruliweb",    "label": "루리웹",        "group": "kr", "default": True, "color": "#0066CC"},
-    {"key": "theqoo",     "label": "더쿠",          "group": "kr", "default": True, "color": "#7B2FF7"},
     {"key": "inven",      "label": "인벤",          "group": "kr", "default": True, "color": "#00A651"},
     {"key": "natepan",    "label": "네이트판",      "group": "kr", "default": True, "color": "#EC2028"},
-    {"key": "arcalive",   "label": "아카라이브",    "group": "kr", "default": True, "color": "#5AC8FA"},
     {"key": "clien",      "label": "클리앙",        "group": "kr", "default": True, "color": "#3B82F6"},
     {"key": "instiz",     "label": "인스티즈",      "group": "kr", "default": True, "color": "#FF69B4"},
     {"key": "bobaedream", "label": "보배드림",      "group": "kr", "default": True, "color": "#333333"},
