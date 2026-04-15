@@ -149,13 +149,13 @@ st.markdown(
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:first-child {
         flex: 1 1 auto !important;
     }
-    /* 카드 헤더 안의 ★ 버튼만 뱃지 크기로 — 다른 버튼은 원래 크기 */
+    /* 카드 헤더 안의 ★ 버튼만 미니 사이즈 — wrapper 여백은 그대로 둠 */
     div[class*="st-key-cardhead_"] .stButton > button {
-        min-height: 28px !important;
-        height: 28px !important;
-        padding: 0 10px !important;
-        border-radius: 14px !important;
-        font-size: 0.9rem !important;
+        min-height: 22px !important;
+        height: 22px !important;
+        padding: 0 8px !important;
+        border-radius: 11px !important;
+        font-size: 0.75rem !important;
         line-height: 1 !important;
         font-weight: 700 !important;
     }
