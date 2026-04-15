@@ -213,9 +213,32 @@ def filter_results(results: list[dict], *, category: str, keyword: str,
     if platforms:
         out = [r for r in out if r.get("source") in platforms]
 
-    key = {"추천순": "score", "조회순": "views", "댓글순": "comments"}.get(sort)
+    def _num(r: dict, k: str) -> int:
+        """메타 필드를 안전하게 정수로."""
+        v = r.get(k, 0)
+        if isinstance(v, int):
+            return v
+        try:
+            return int(v or 0)
+        except (ValueError, TypeError):
+            return 0
+
+    key_map = {"추천순": "score", "조회순": "views", "댓글순": "comments"}
+    key = key_map.get(sort)
     if key:
-        out.sort(key=lambda r: r.get(key, 0) or 0, reverse=True)
+        # 메타 있는 항목(값 > 0)을 먼저, 없는 항목은 뒤로 밀고 각각 내림차순
+        def _sort_key(r: dict) -> tuple[int, int]:
+            v = _num(r, key)
+            return (1 if v > 0 else 0, v)  # 있는 것(1)이 먼저, 같은 그룹 내에선 값 내림차순
+        out.sort(key=_sort_key, reverse=True)
+    elif sort == "인기순":
+        # 복합 인기도
+        out.sort(
+            key=lambda r: _num(r, "score") * 10
+                          + _num(r, "views") // 100
+                          + _num(r, "comments") * 3,
+            reverse=True,
+        )
     elif sort == "최신순":
         out.sort(key=lambda r: r.get("collected_at", ""), reverse=True)
     return out
@@ -536,7 +559,11 @@ if _page == "📊 결과":
             options=all_sources,
             default=all_sources,
         )
-        sort_by = fc2.selectbox("정렬", ["추천순", "조회순", "댓글순", "최신순"])
+        sort_by = fc2.selectbox(
+            "정렬",
+            ["인기순", "추천순", "조회순", "댓글순", "최신순"],
+            help="기본은 인기순(추천·조회·댓글 종합). 메타 없는 항목은 자동으로 뒤로 밀립니다.",
+        )
 
         filtered = filter_results(
             results,
@@ -546,7 +573,22 @@ if _page == "📊 결과":
             sort=sort_by,
         )
 
+        # 정렬 검증 힌트 — top 5의 정렬 기준 값을 보여줌
         st.caption(f"필터링 결과: {len(filtered)}건")
+        if filtered and sort_by in ("추천순", "조회순", "댓글순"):
+            _field_map = {"추천순": ("score", "추천"), "조회순": ("views", "조회"), "댓글순": ("comments", "댓글")}
+            fld, label = _field_map[sort_by]
+            top_values = []
+            for r in filtered[:5]:
+                v = r.get(fld, 0)
+                try:
+                    top_values.append(int(v or 0))
+                except (ValueError, TypeError):
+                    top_values.append(0)
+            st.caption(
+                f"🔎 정렬 검증 (상위 5개 {label}수): "
+                + " → ".join(f"{v:,}" for v in top_values)
+            )
 
         # 카드 3열 그리드
         cols = st.columns(3)

@@ -200,6 +200,12 @@ class BaseScraper(ABC):
         "[이벤트]", "(이벤트)", "[EVENT]", "[event]",
         "[광고]", "(광고)", "[AD]", "(AD)", "[ad]", "광고문의",
         "notice:", "[notice]", "(notice)",
+        # 괄호 없는 공지성 문구 (제목에 substring으로 포함되면 공지)
+        "이용 안내", "이용안내", "이용 규칙", "이용규칙",
+        "운영 안내", "운영안내", "운영 정책", "운영정책", "운영 원칙", "운영원칙",
+        "서비스 안내", "서비스안내", "점검 안내", "점검안내",
+        "안내드립니다", "알려드립니다", "공지합니다", "공지사항",
+        "이용약관", "이용 약관", "가이드라인",
     ]
     #: 제목/요약에서 발견되면 광고/모집글로 간주
     AD_KEYWORDS: list[str] = [
@@ -207,11 +213,19 @@ class BaseScraper(ABC):
         "주식리딩", "리딩방", "종목추천", "코인리딩",
         "무료상담", "무료진단", "무료체험", "후원금", "기부",
         "구매대행", "제휴문의", "업체 문의", "업체문의",
+        "판매합니다", "팝니다", "분양합니다", "임대합니다",
+        "상담받으세요", "문의주세요",
     ]
     #: 제목이 이런 접미사로 끝나면 '게시판 네비게이션 링크'로 간주
     NAV_SUFFIXES: tuple[str, ...] = (
         "게시판", "광장", "마당", "포털", "포럼", "플라자",
         "커뮤니티", "갤러리", "뽐뿌", "공유", "토크",
+    )
+    #: 제목의 첫 단어(띄어쓰기 기준)가 이 접미사로 끝나면 업체명 → AD로 간주
+    #: 예) "준준모터스 중고순정부품" → 첫 단어 "준준모터스" → "모터스" 접미사 매칭
+    SHOP_NAME_SUFFIXES: tuple[str, ...] = (
+        "모터스", "카센터", "정비소", "공업사", "상회", "상사",
+        "제휴사", "부동산", "중개소", "공인중개", "타이어", "오토바이",
     )
 
     def _is_notice_or_ad(self, item: dict) -> bool:
@@ -241,6 +255,13 @@ class BaseScraper(ABC):
             for suf in self.NAV_SUFFIXES:
                 if title.endswith(suf):
                     return True
+
+        # 5) 업체명으로 시작하는 광고 ("준준모터스 중고순정부품" 등)
+        first_word = title.split()[0] if title.split() else ""
+        for suf in self.SHOP_NAME_SUFFIXES:
+            # 첫 단어가 업체 suffix로 끝나고, 단어 길이가 2자보다 크면 (접미사만 있는 건 제외)
+            if first_word.endswith(suf) and len(first_word) > len(suf):
+                return True
 
         return False
 
@@ -367,14 +388,44 @@ class BaseScraper(ABC):
             if title in ("더보기", "목록", "이전", "다음", "홈", "로그인"):
                 continue
 
+            # ★ 핵심: 부모 컨텍스트에 숫자가 2개 이상 있어야 게시글로 인정
+            # (게시글 목록은 보통 '날짜 + 조회수 + 추천/댓글' 3개 이상의 숫자 필드가 있음,
+            # 네비게이션/광고/사이드바는 숫자가 거의 없음)
+            parent = a.find_parent(["tr", "li", "article", "div"])
+            score = views = comments = 0
+            if parent:
+                parent_text = parent.get_text(" ", strip=True)
+                all_nums = re.findall(r"\d{1,6}(?:,\d{3})*", parent_text)
+                if len(all_nums) < 2:
+                    continue
+
+                # 레이블 기반 추출 시도
+                m_score = re.search(r"(?:추천|좋아요|공감|up|vote)[\s:]*([\d,]+)",
+                                    parent_text, re.I)
+                m_views = re.search(r"(?:조회|views?|hit)[\s:]*([\d,]+)",
+                                    parent_text, re.I)
+                m_comments = re.search(r"(?:댓글|reply|comment)[\s:]*([\d,]+)",
+                                       parent_text, re.I)
+                if m_score:
+                    score = self.to_int(m_score.group(1))
+                if m_views:
+                    views = self.to_int(m_views.group(1))
+                if m_comments:
+                    comments = self.to_int(m_comments.group(1))
+            else:
+                # 부모 없음 = 구조 비정상, 스킵
+                continue
+
             seen_hrefs.add(abs_url)
             items.append({
                 "title": title,
                 "url": abs_url,
-                "score": 0,
-                "views": 0,
-                "comments": 0,
-                "engagement": "",
+                "score": score,
+                "views": views,
+                "comments": comments,
+                "engagement": self.format_engagement(
+                    score=score, views=views, comments=comments
+                ),
             })
 
             if len(items) >= 50:
