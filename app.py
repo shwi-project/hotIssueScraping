@@ -1,6 +1,7 @@
 """🎬 쇼츠 소재 수집기 — Streamlit 메인 앱."""
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import time
@@ -99,7 +100,21 @@ st.markdown(
         color: #065F46;
         font-size: 0.75rem;
         font-weight: 600;
+        margin-left: auto; /* 오른쪽 끝으로 */
     }
+    .save-pill {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        background: #FEF3C7;
+        color: #92400E !important;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-decoration: none !important;
+        border: 1px solid #F59E0B;
+        margin-left: auto; /* 오른쪽 끝으로 */
+    }
+    .save-pill:hover { background: #FDE68A; color: #78350F !important; }
     .link-pill {
         display: inline-block;
         padding: 2px 10px;
@@ -109,7 +124,12 @@ st.markdown(
         font-size: 0.75rem;
         font-weight: 500;
         text-decoration: none !important;
-        margin-left: auto; /* 오른쪽 끝으로 */
+        margin-left: auto; /* save-pill 없을 때 오른쪽 정렬 */
+    }
+    /* save-pill 또는 saved-pill 이 있으면 링크는 그 옆에 바로 붙음 */
+    .save-pill + .link-pill,
+    .saved-pill + .link-pill {
+        margin-left: 4px;
     }
     .link-pill:hover { background: #D1D5DB; }
 
@@ -237,6 +257,29 @@ if "last_summary" not in st.session_state:
     st.session_state.last_summary = {}
 if "analysis_cache" not in st.session_state:
     st.session_state.analysis_cache = {}  # url -> analysis dict
+
+
+# ---------------------------------------------------------------------------
+# URL 쿼리 파라미터 기반 저장 처리
+# (★ 저장 pill이 <a href="?save=xxxx">로 동작하므로 여기서 감지해서 저장)
+# ---------------------------------------------------------------------------
+def _hash_url(url: str) -> str:
+    return hashlib.md5(url.encode("utf-8")).hexdigest()[:12]
+
+
+_save_req = st.query_params.get("save")
+if _save_req:
+    for _r in st.session_state.get("results", []):
+        _u = _r.get("url") or ""
+        if _u and _hash_url(_u) == _save_req:
+            if storage.add_item(_r):
+                st.toast("저장됨", icon="⭐")
+            break
+    # URL 정리
+    try:
+        del st.query_params["save"]
+    except KeyError:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -507,8 +550,16 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                 '<span class="category-tag warn" title="조회/추천/댓글 수치 없음">'
                 '⚠️ 메타없음</span>'
             )
-        if is_saved:
-            header_bits.append('<span class="saved-pill">✅ 저장됨</span>')
+        # 저장 상태별 pill 추가
+        if show_save and url:
+            if is_saved:
+                header_bits.append('<span class="saved-pill">✅ 저장됨</span>')
+            else:
+                save_id = _hash_url(url)
+                header_bits.append(
+                    f'<a href="?save={save_id}" target="_self" class="save-pill" '
+                    f'title="저장">★ 저장</a>'
+                )
         if url:
             header_bits.append(
                 f'<a href="{url}" target="_blank" class="link-pill" title="원문 보기">'
@@ -561,13 +612,6 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                             st.session_state.results[i] = analyzed
                             break
                 st.rerun()
-
-        # 저장 버튼 — 저장 전일 때만 카드 하단에 표시
-        if show_save and url and not is_saved:
-            if st.button("★ 저장", key=f"{key_prefix}_save", use_container_width=False):
-                if storage.add_item(item):
-                    st.toast("저장됨", icon="⭐")
-                    st.rerun()
 
 
 # ---------------------------------------------------------------------------
