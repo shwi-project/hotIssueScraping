@@ -13,7 +13,6 @@ import streamlit as st
 import analyzer
 import storage
 from config import (
-    CACHE_TTL,
     CATEGORIES,
     MAX_ITEMS_PER_SITE,
     SCRAPER_REGISTRY,
@@ -349,9 +348,9 @@ if "analysis_cache" not in st.session_state:
 # ---------------------------------------------------------------------------
 # 수집 로직
 # ---------------------------------------------------------------------------
-@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+# 캐시 제거 — 매 수집마다 새로 가져오게 (사용자 요청)
 def collect_from(keys: tuple[str, ...], limit: int) -> dict:
-    """선택된 플랫폼에서 인기글 수집 (캐시)."""
+    """선택된 플랫폼에서 인기글 수집 — 캐시 없음, 매 호출마다 새로."""
     results: list[dict] = []
     success: list[str] = []
     failed: list[dict] = []  # [{"key": ..., "reason": ...}]
@@ -534,23 +533,6 @@ with pop_col1:
         if ai_on and not analyzer.is_available():
             st.warning("API 키가 없어요. 설정 탭에서 입력하세요.")
 
-        st.divider()
-        st.markdown("### 💾 캐시")
-        st.caption(
-            "같은 플랫폼 조합으로 **5분 내 재수집**하면 캐시된 결과가 반환돼요. "
-            "실패했을 때도 결과가 고정될 수 있으니, 새로 시도하려면 아래 체크."
-        )
-        force_refresh = st.checkbox(
-            "🔄 캐시 무시하고 재수집",
-            value=False,
-            key="force_refresh",
-            help="체크하면 이번 수집은 캐시를 건너뛰고 완전히 새로 가져옵니다.",
-        )
-        if st.button("🧹 전체 캐시 초기화", use_container_width=True,
-                     help="저장된 모든 수집 캐시 제거"):
-            collect_from.clear()
-            st.toast("캐시 초기화됨", icon="🧹")
-
 with pop_col2:
     run_btn = st.button(
         "🔍 수집",
@@ -587,9 +569,6 @@ if run_btn:
     if not selected:
         st.warning("최소 한 개 이상의 플랫폼을 선택하세요.")
     else:
-        # 캐시 무시 옵션: 캐시 지우고 호출
-        if st.session_state.get("force_refresh"):
-            collect_from.clear()
         t0 = time.time()
         with st.spinner(f"🌐 {len(selected)}개 플랫폼에서 수집 중…"):
             payload = collect_from(selected, per_site_limit)
@@ -1260,27 +1239,29 @@ SCRAPECREATORS_API_KEY=sk_...
     st.divider()
 
     # -----------------------------------------------------------------------
-    # 수집 동작 원리 (캐시/간헐 실패 설명)
+    # 수집 동작 원리
     # -----------------------------------------------------------------------
-    st.subheader("💾 수집 동작 원리")
+    st.subheader("⚙️ 수집 동작 원리")
     st.markdown(
         """
-**캐시 정책**
-- `@st.cache_data(ttl=300)` — 같은 플랫폼 조합으로 재수집 시 **5분간 캐시** 반환
-- 실패한 결과도 캐시됨 → "됐다 안됐다" 현상의 주 원인
-- **우회법**: 수집 팝오버의 `🔄 캐시 무시하고 재수집` 체크 OR `🧹 전체 캐시 초기화` 버튼
+**캐시 없음 (항상 재수집)**
+- 수집 버튼을 누를 때마다 **캐시 없이 모든 플랫폼을 새로 호출**
+- 장점: 항상 최신 데이터 / 단점: 버튼 연타 시 사이트에 부담 → 약간 기다려주세요
 
-**간헐 실패 (돌아가다가 갑자기 안 됨) 원인**
-1. **사이트의 레이트 리미팅** — 연속 요청 시 일부 사이트가 일시 차단 → 1-5분 후 해제
-2. **Streamlit Cloud 공용 IP** — 다른 사용자 트래픽과 뭉쳐 사이트가 일시 차단
-3. **curl_cffi TLS fingerprint** — 재시도마다 조금씩 다른 요청 → 운에 따라 성공/실패
-4. **HTML 레이아웃 A/B 테스트** — 사이트가 일부 사용자에게 다른 HTML 제공
+**실패 자동 재시도**
+- 스크래퍼가 실패하면 최대 **2회 재시도** (지수 백오프: 1s → 2s)
+- 각 시도마다 User-Agent 로테이션 + curl_cffi fallback
+- 일시적 레이트 리미팅 / 네트워크 변동에 자동 대응
+
+**'됐다 안됐다' 남은 원인**
+1. **Streamlit Cloud 공용 IP** — 일부 사이트가 특정 IP 대역 차단
+2. **curl_cffi TLS fingerprint 변동** — 재시도마다 미세하게 다름
+3. **사이트 HTML A/B 테스트** — 일부 사용자에게 다른 HTML 제공
 
 **대처 순서**
-1. 캐시 초기화 후 재시도
-2. 수집 건수 슬라이더 줄여서 (5건) 재시도
-3. 잠시 후 (1-5분) 재시도
-4. 로컬 PC에서 실행 (공용 IP 블랙리스트 회피)
+1. 수집 건수 슬라이더 줄여서 (5건) 재시도
+2. 잠시 후 (1-5분) 재시도 (사이트 레이트 리미팅 해제 대기)
+3. 로컬 PC에서 실행 (공용 IP 블랙리스트 회피)
         """
     )
 

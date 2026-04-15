@@ -116,11 +116,11 @@ SCRAPER_REGISTRY: list[dict] = [
     {"key": "mlbpark",    "label": "MLB파크",       "group": "kr", "default": True, "color": "#003DA5"},
     {"key": "humoruniv",  "label": "웃긴대학",      "group": "kr", "default": True, "color": "#FFD700"},
     {"key": "naver_trends", "label": "네이버 트렌드", "group": "kr", "default": True, "color": "#03C75A"},
-    # 🌍 해외 — 모두 기본 ON
-    {"key": "reddit",        "label": "Reddit",       "group": "global", "default": True, "color": "#FF4500"},
-    {"key": "threads",       "label": "Threads",      "group": "global", "default": True, "color": "#000000"},
-    {"key": "youtube_trends","label": "YouTube 인기", "group": "global", "default": True, "color": "#FF0000"},
-    {"key": "tiktok_trends", "label": "TikTok",       "group": "global", "default": True, "color": "#010101"},
+    # 🌍 해외 — 모두 기본 OFF (필요 시 수동으로 켜기)
+    {"key": "reddit",        "label": "Reddit",       "group": "global", "default": False, "color": "#FF4500"},
+    {"key": "threads",       "label": "Threads",      "group": "global", "default": False, "color": "#000000"},
+    {"key": "youtube_trends","label": "YouTube 인기", "group": "global", "default": False, "color": "#FF0000"},
+    {"key": "tiktok_trends", "label": "TikTok",       "group": "global", "default": False, "color": "#010101"},
 ]
 
 

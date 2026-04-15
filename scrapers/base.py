@@ -103,44 +103,64 @@ class BaseScraper(ABC):
             "Connection": "keep-alive",
         }
 
+    #: fetch 실패 시 재시도 횟수 (지수 백오프)
+    MAX_RETRIES: int = 2
+
     def fetch(self, url: str | None = None, *, params: dict | None = None,
               headers: dict | None = None) -> str:
-        """HTTP GET. 실패 시 curl_cffi로 재시도, 그래도 실패하면 예외."""
+        """HTTP GET. 실패 시 curl_cffi fallback + MAX_RETRIES 재시도."""
         target = url or self.base_url
-        merged_headers = dict(self.session.headers)
-        merged_headers["User-Agent"] = random_user_agent()
-        # Referer 자동 주입 (사이트 내부 이동처럼 보이게)
-        if self.default_referer:
-            merged_headers.setdefault("Referer", self.default_referer)
-        elif target:
-            from urllib.parse import urlparse
-            p = urlparse(target)
-            if p.scheme and p.netloc:
-                merged_headers.setdefault("Referer", f"{p.scheme}://{p.netloc}/")
+        merged_headers_base = dict(self.session.headers)
         if headers:
-            merged_headers.update(headers)
+            merged_headers_base.update(headers)
 
-        try:
-            response = self.session.get(
-                target,
-                params=params,
-                headers=merged_headers,
-                timeout=REQUEST_TIMEOUT,
-            )
-            response.raise_for_status()
-        except Exception as exc:  # noqa: BLE001 — 403/430 포함 모든 실패
-            # curl_cffi로 재시도 (TLS fingerprint 위조)
-            if self._cffi_session is None:
-                raise
-            logger.info("[%s] 1차 실패, curl_cffi 재시도: %s", self.source, exc)
-            response = self._cffi_session.get(
-                target,
-                params=params,
-                headers=merged_headers,
-                timeout=REQUEST_TIMEOUT,
-                impersonate="chrome124",
-            )
-            response.raise_for_status()
+        last_exc: Exception | None = None
+        response = None
+
+        for attempt in range(self.MAX_RETRIES + 1):
+            # 매 시도마다 User-Agent 로테이션 + Referer 재계산
+            merged_headers = dict(merged_headers_base)
+            merged_headers["User-Agent"] = random_user_agent()
+            if self.default_referer:
+                merged_headers.setdefault("Referer", self.default_referer)
+            elif target:
+                from urllib.parse import urlparse
+                p = urlparse(target)
+                if p.scheme and p.netloc:
+                    merged_headers.setdefault("Referer", f"{p.scheme}://{p.netloc}/")
+
+            try:
+                response = self.session.get(
+                    target, params=params, headers=merged_headers,
+                    timeout=REQUEST_TIMEOUT,
+                )
+                response.raise_for_status()
+                break  # 성공
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                # curl_cffi로 폴백 (같은 시도 내 2차 채널)
+                if self._cffi_session is not None:
+                    try:
+                        response = self._cffi_session.get(
+                            target, params=params, headers=merged_headers,
+                            timeout=REQUEST_TIMEOUT, impersonate="chrome124",
+                        )
+                        response.raise_for_status()
+                        break  # curl_cffi 성공
+                    except Exception as exc2:  # noqa: BLE001
+                        last_exc = exc2
+                # 재시도 대기 (지수 백오프 + 지터)
+                if attempt < self.MAX_RETRIES:
+                    import random as _rnd
+                    backoff = (2 ** attempt) + _rnd.random()
+                    logger.info(
+                        "[%s] 시도 %d 실패 (%s), %.1fs 후 재시도",
+                        self.source, attempt + 1, exc, backoff,
+                    )
+                    time.sleep(backoff)
+                    continue
+                # 재시도 한도 초과
+                raise last_exc
 
         if self.encoding:
             try:
