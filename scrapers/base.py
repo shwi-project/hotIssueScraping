@@ -62,6 +62,15 @@ class BaseScraper(ABC):
         except Exception:  # noqa: BLE001 — 미설치 또는 초기화 실패 시 fallback
             self.session = requests.Session()
         self.session.headers.update(self._default_headers())
+
+        # curl_cffi 백업 세션 — TLS fingerprint를 실제 Chrome으로 위조해 403/430 돌파
+        self._cffi_session = None
+        try:
+            from curl_cffi import requests as _cffi
+            self._cffi_session = _cffi.Session(impersonate="chrome124")
+        except Exception:  # noqa: BLE001 — 미설치 시 None으로 둠
+            pass
+
         #: 마지막 수집에서 발생한 에러 메시지 (비어있으면 성공/미실행)
         self.last_error: str = ""
 
@@ -96,7 +105,7 @@ class BaseScraper(ABC):
 
     def fetch(self, url: str | None = None, *, params: dict | None = None,
               headers: dict | None = None) -> str:
-        """HTTP GET. 실패 시 예외를 상위로 올린다."""
+        """HTTP GET. 실패 시 curl_cffi로 재시도, 그래도 실패하면 예외."""
         target = url or self.base_url
         merged_headers = dict(self.session.headers)
         merged_headers["User-Agent"] = random_user_agent()
@@ -104,7 +113,6 @@ class BaseScraper(ABC):
         if self.default_referer:
             merged_headers.setdefault("Referer", self.default_referer)
         elif target:
-            # 같은 사이트 루트를 Referer로
             from urllib.parse import urlparse
             p = urlparse(target)
             if p.scheme and p.netloc:
@@ -112,17 +120,38 @@ class BaseScraper(ABC):
         if headers:
             merged_headers.update(headers)
 
-        response = self.session.get(
-            target,
-            params=params,
-            headers=merged_headers,
-            timeout=REQUEST_TIMEOUT,
-        )
+        try:
+            response = self.session.get(
+                target,
+                params=params,
+                headers=merged_headers,
+                timeout=REQUEST_TIMEOUT,
+            )
+            response.raise_for_status()
+        except Exception as exc:  # noqa: BLE001 — 403/430 포함 모든 실패
+            # curl_cffi로 재시도 (TLS fingerprint 위조)
+            if self._cffi_session is None:
+                raise
+            logger.info("[%s] 1차 실패, curl_cffi 재시도: %s", self.source, exc)
+            response = self._cffi_session.get(
+                target,
+                params=params,
+                headers=merged_headers,
+                timeout=REQUEST_TIMEOUT,
+                impersonate="chrome124",
+            )
+            response.raise_for_status()
+
         if self.encoding:
-            response.encoding = self.encoding
+            try:
+                response.encoding = self.encoding
+            except Exception:  # noqa: BLE001 — curl_cffi Response는 encoding 속성 다를 수 있음
+                pass
         else:
-            response.encoding = response.apparent_encoding or "utf-8"
-        response.raise_for_status()
+            try:
+                response.encoding = response.apparent_encoding or "utf-8"
+            except Exception:  # noqa: BLE001
+                pass
         time.sleep(REQUEST_DELAY)
         return response.text
 
@@ -217,6 +246,12 @@ class BaseScraper(ABC):
             logger.warning("[%s] 수집 실패: %s", self.source, exc)
             return []
 
+        # 셀렉터 실패 시 범용 링크 휴리스틱 fallback
+        if not items:
+            items = self._heuristic_parse(html)
+            if items:
+                logger.info("[%s] heuristic fallback 사용: %d건", self.source, len(items))
+
         # 공지/광고 제거
         items = [it for it in items if not self._is_notice_or_ad(it)]
 
@@ -230,7 +265,9 @@ class BaseScraper(ABC):
         items.sort(key=_popularity, reverse=True)
 
         if not items:
-            self.last_error = "파싱 결과 0건 (레이아웃 변경 가능성)"
+            self.last_error = (
+                "파싱 결과 0건 — 레이아웃 변경 또는 CAPTCHA/빈 페이지 반환 가능"
+            )
 
         out: list[dict] = []
         for it in items[:limit]:
@@ -238,10 +275,101 @@ class BaseScraper(ABC):
         return out
 
     # ------------------------------------------------------------------
+    # 범용 링크 휴리스틱
+    # ------------------------------------------------------------------
+    def _heuristic_parse(self, html: str) -> list[dict]:
+        """스크래퍼 parse()가 0건일 때 fallback.
+
+        페이지의 모든 <a> 중 '게시글 URL처럼 생긴' 것들만 추출:
+        - href에 숫자 ID 또는 view/article/board 패턴
+        - 제목 길이 10~200자
+        - 중복 href 제외
+        """
+        import re
+        from urllib.parse import urljoin, urlparse
+        try:
+            soup = self.soup(html)
+        except Exception:  # noqa: BLE001
+            return []
+
+        # 응답이 CAPTCHA/차단 페이지면 스킵 (대부분 <body> 크기가 작음)
+        body = soup.find("body")
+        if not body or len(body.get_text(strip=True)) < 200:
+            return []
+
+        base_netloc = urlparse(self.base_url).netloc
+        article_href_re = re.compile(
+            r"(?:^|/)\d{4,}(?:[/?]|$)"           # /12345 또는 /12345?
+            r"|(?:id|no|wr_id|articleid)=\d+"    # ?id=123, ?no=123
+            r"|/(?:view|article|read|board|post|thread)/",
+            re.I,
+        )
+        items: list[dict] = []
+        seen_hrefs: set[str] = set()
+
+        for a in soup.find_all("a", href=True):
+            href = a["href"].strip()
+            if not href or href.startswith("#") or href.startswith("javascript:"):
+                continue
+
+            # 게시글 URL 패턴 확인
+            if not article_href_re.search(href):
+                continue
+
+            # 절대 URL 변환 + 같은 호스트만 (외부 링크 제외)
+            abs_url = urljoin(self.base_url, href)
+            try:
+                netloc = urlparse(abs_url).netloc
+                if base_netloc and netloc and not self._same_site(netloc, base_netloc):
+                    continue
+            except Exception:  # noqa: BLE001
+                continue
+
+            if abs_url in seen_hrefs:
+                continue
+
+            title = a.get_text(" ", strip=True)
+            if not title or len(title) < 8 or len(title) > 200:
+                continue
+            # 메뉴성 텍스트 제외
+            if title in ("더보기", "목록", "이전", "다음", "홈", "로그인"):
+                continue
+
+            seen_hrefs.add(abs_url)
+            items.append({
+                "title": title,
+                "url": abs_url,
+                "score": 0,
+                "views": 0,
+                "comments": 0,
+                "engagement": "",
+            })
+
+            if len(items) >= 50:
+                break
+        return items
+
+    @staticmethod
+    def _same_site(a: str, b: str) -> bool:
+        """두 호스트가 같은 사이트(루트 도메인 일치)인지 확인."""
+        def root(host: str) -> str:
+            parts = host.split(".")
+            return ".".join(parts[-2:]) if len(parts) >= 2 else host
+        return root(a) == root(b)
+
+    # ------------------------------------------------------------------
     # 반환 포맷 정규화
     # ------------------------------------------------------------------
     def _normalize(self, item: dict) -> dict:
         now = datetime.now(timezone.utc).isoformat()
+        def _safe_int(v) -> int:
+            if isinstance(v, int):
+                return v
+            try:
+                return int(v or 0)
+            except (ValueError, TypeError):
+                return self.to_int(v)
+
         return {
             "title": (item.get("title") or "").strip(),
             "summary": (item.get("summary") or "").strip(),
@@ -252,9 +380,9 @@ class BaseScraper(ABC):
             "thumbnail": item.get("thumbnail", ""),
             "collected_at": item.get("collected_at", now),
             # 정렬/분석에 쓰이는 숫자 필드 (있으면 채워짐)
-            "score": int(item.get("score") or 0),
-            "views": int(item.get("views") or 0),
-            "comments": int(item.get("comments") or 0),
+            "score": _safe_int(item.get("score")),
+            "views": _safe_int(item.get("views")),
+            "comments": _safe_int(item.get("comments")),
         }
 
     # ------------------------------------------------------------------
@@ -262,16 +390,22 @@ class BaseScraper(ABC):
     # ------------------------------------------------------------------
     @staticmethod
     def to_int(text: str | None) -> int:
-        """'1.2K', '3,456', '조회 789' 같은 문자열을 정수로 변환."""
+        """'1.2K', '3,456', '조회 789' 같은 문자열을 정수로 변환.
+
+        날짜 문자열('23.06.19') 등 float로 파싱 불가능한 케이스는 0 반환.
+        """
         if text is None:
             return 0
         s = str(text).strip().lower().replace(",", "")
-        # 숫자 앞 한글/기호 제거
         import re
-        m = re.search(r"([\d.]+)\s*([km万])?", s)
+        # 정수 또는 소수 한 번(예: 1.2K)만 허용 — 날짜 23.06.19 는 매칭 안 됨
+        m = re.search(r"(\d+(?:\.\d+)?)\s*([km万])?", s)
         if not m:
             return 0
-        num = float(m.group(1))
+        try:
+            num = float(m.group(1))
+        except (ValueError, TypeError):
+            return 0
         suf = m.group(2)
         if suf == "k":
             num *= 1_000
