@@ -149,13 +149,29 @@ st.markdown(
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:first-child {
         flex: 1 1 auto !important;
     }
-    /* 카드 헤더 안의 ★ 버튼만 미니 사이즈 — wrapper 여백은 그대로 둠 */
-    div[class*="st-key-cardhead_"] .stButton > button {
-        min-height: 22px !important;
-        height: 22px !important;
-        padding: 0 8px !important;
-        border-radius: 11px !important;
-        font-size: 0.75rem !important;
+    /* 카드 헤더 우측 컬럼 (저장 버튼 자리)만 폭 제한 + 시각적 축소 */
+    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child,
+    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child {
+        max-width: 50px !important;
+        min-width: 30px !important;
+        flex: 0 0 auto !important;
+    }
+    /* 그 컬럼 안의 모든 버튼/요소 transform으로 축소 (specificity 회피) */
+    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:last-child .stButton {
+        transform: scale(0.65);
+        transform-origin: right top;
+        margin-top: -10px !important;
+        margin-bottom: -10px !important;
+        margin-right: -6px !important;
+    }
+    /* 폴백 — CSS 사이즈 직접 지정도 시도 */
+    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:last-child .stButton button,
+    div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:last-child button[kind] {
+        min-height: 0 !important;
+        height: auto !important;
+        padding: 4px 10px !important;
+        border-radius: 14px !important;
+        font-size: 0.9rem !important;
         line-height: 1 !important;
         font-weight: 700 !important;
     }
@@ -562,8 +578,17 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                             unsafe_allow_html=True,
                         )
                     else:
-                        if st.button("★", key=f"{key_prefix}_save",
-                                     help="저장", use_container_width=True):
+                        # tertiary 타입(border 없음, 더 작음) 우선 시도
+                        try:
+                            clicked = st.button(
+                                "★", key=f"{key_prefix}_save",
+                                help="저장", type="tertiary",
+                            )
+                        except (TypeError, ValueError):
+                            clicked = st.button(
+                                "★", key=f"{key_prefix}_save", help="저장",
+                            )
+                        if clicked:
                             if storage.add_item(item):
                                 st.toast("저장됨", icon="⭐")
                                 st.rerun()
