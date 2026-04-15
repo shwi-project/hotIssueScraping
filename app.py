@@ -156,15 +156,22 @@ st.markdown(
         min-width: 35px !important;
         flex: 0 0 auto !important;
     }
-    /* ★ 버튼 본체 — 아이콘 크기 */
+    /* ★ 버튼 본체 — 작았던 버전 (transform scale 트릭) */
+    div[class*="st-key-cardhead_"] .stButton {
+        transform: scale(0.65);
+        transform-origin: right top;
+        margin-top: -10px !important;
+        margin-bottom: -10px !important;
+        margin-right: -6px !important;
+    }
     div[class*="st-key-cardhead_"] .stButton button,
     div[class*="st-key-cardhead_"] button[kind],
     div[class*="st-key-cardhead_"] button[data-testid*="baseButton"] {
-        min-height: 24px !important;
-        height: 24px !important;
-        padding: 0 6px !important;
-        border-radius: 12px !important;
-        font-size: 0.95rem !important;
+        min-height: 28px !important;
+        height: 28px !important;
+        padding: 0 10px !important;
+        border-radius: 14px !important;
+        font-size: 0.9rem !important;
         line-height: 1 !important;
         font-weight: 700 !important;
         white-space: nowrap !important;
