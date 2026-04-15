@@ -30,7 +30,7 @@ st.set_page_config(
     page_title="🎬 쇼츠 소재 수집기",
     page_icon="🎬",
     layout="wide",
-    initial_sidebar_state="auto",  # 모바일에서는 자동으로 접힘
+    initial_sidebar_state="collapsed",  # 사이드바 사용 안 함 (모든 컨트롤 메인 영역)
 )
 
 # ---------------------------------------------------------------------------
@@ -78,6 +78,30 @@ st.markdown(
         margin-bottom: 4px;
     }
     .stars { color: #F59E0B; }
+
+    /* 사이드바 완전 숨김 (모든 컨트롤 메인 영역으로 이동) */
+    section[data-testid="stSidebar"] { display: none !important; }
+    div[data-testid="collapsedControl"] { display: none !important; }
+
+    /* 상단 네비 래디오 — 탭처럼 보이게 pill 스타일 */
+    div[data-testid="stRadio"] > div[role="radiogroup"] {
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+    div[data-testid="stRadio"] label[data-baseweb="radio"] {
+        background: #F3F4F6;
+        padding: 6px 14px !important;
+        border-radius: 20px;
+        cursor: pointer;
+        margin: 2px;
+    }
+    div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {
+        background: #3B82F6;
+        color: white;
+    }
+    div[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
+        display: none; /* 래디오 동그라미 숨김 */
+    }
 
     /* ---------- 📱 모바일 대응 ---------- */
     @media (max-width: 768px) {
@@ -216,61 +240,100 @@ def _toggle_group(group: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 사이드바
+# 메인 상단: 타이틀 + 네비게이션 + 팝오버 컨트롤
 # ---------------------------------------------------------------------------
-with st.sidebar:
-    st.title("🎬 쇼츠 소재 수집기")
-    st.caption("국내외 18개 인기 플랫폼에서 바이럴 콘텐츠 수집")
+st.title("🎬 쇼츠 소재 수집기")
+st.caption("국내외 18개 인기 플랫폼에서 바이럴 콘텐츠를 수집합니다.")
 
-    # --- 플랫폼 선택 ---
-    st.subheader("🇰🇷 국내 커뮤니티")
-    st.checkbox(
-        "전체 선택/해제",
-        key="kr_all",
-        on_change=_toggle_group,
-        args=("kr",),
+# 네비게이션 (가로 래디오 — tab보다 모바일에 안정적)
+_page = st.radio(
+    "페이지",
+    ["📊 결과", "★ 저장", "📈 분석", "⚙️ 설정"],
+    horizontal=True,
+    label_visibility="collapsed",
+    key="page_nav",
+)
+
+# 플랫폼/필터/수집 컨트롤은 팝오버 안에
+pop_col1, pop_col2 = st.columns([3, 1])
+with pop_col1:
+    with st.popover("⚙️ 플랫폼 · 필터 · 수집", use_container_width=True):
+        st.markdown("### 🇰🇷 국내 커뮤니티")
+        st.checkbox(
+            "전체 선택/해제",
+            key="kr_all",
+            on_change=_toggle_group,
+            args=("kr",),
+        )
+        kr_cols = st.columns(2)
+        kr_keys: list[str] = []
+        for i, item in enumerate(SCRAPER_REGISTRY):
+            if item["group"] != "kr":
+                continue
+            with kr_cols[i % 2]:
+                if st.checkbox(item["label"], key=f"chk_{item['key']}"):
+                    kr_keys.append(item["key"])
+
+        st.markdown("### 🌍 해외 플랫폼")
+        st.checkbox(
+            "전체 선택/해제",
+            key="global_all",
+            on_change=_toggle_group,
+            args=("global",),
+        )
+        gl_cols = st.columns(2)
+        gl_keys: list[str] = []
+        for i, item in enumerate(SCRAPER_REGISTRY):
+            if item["group"] != "global":
+                continue
+            with gl_cols[i % 2]:
+                if st.checkbox(item["label"], key=f"chk_{item['key']}"):
+                    gl_keys.append(item["key"])
+
+        st.divider()
+        st.markdown("### 🔎 필터")
+        genre = st.selectbox("장르", CATEGORIES, index=0, key="genre_filter")
+        keyword = st.text_input("추가 키워드 (제목/요약 검색)", "", key="keyword_filter")
+        per_site_limit = st.slider(
+            "사이트당 수집 건수", 5, 20, MAX_ITEMS_PER_SITE, key="per_site_limit"
+        )
+
+        st.divider()
+        ai_on = st.toggle(
+            "🤖 AI 분석 ON",
+            value=analyzer.is_available(),
+            help="ANTHROPIC_API_KEY 필요 — 설정 탭에서 입력",
+            key="ai_on_toggle",
+        )
+        if ai_on and not analyzer.is_available():
+            st.warning("API 키가 없어요. 설정 탭에서 입력하세요.")
+
+with pop_col2:
+    run_btn = st.button(
+        "🔍 수집",
+        type="primary",
+        use_container_width=True,
+        help="선택한 플랫폼에서 인기글 수집",
     )
-    kr_keys: list[str] = []
-    for item in SCRAPER_REGISTRY:
-        if item["group"] != "kr":
-            continue
-        if st.checkbox(item["label"], key=f"chk_{item['key']}"):
-            kr_keys.append(item["key"])
 
-    st.divider()
-    st.subheader("🌍 해외 플랫폼")
-    st.checkbox(
-        "전체 선택/해제",
-        key="global_all",
-        on_change=_toggle_group,
-        args=("global",),
-    )
-    gl_keys: list[str] = []
-    for item in SCRAPER_REGISTRY:
-        if item["group"] != "global":
-            continue
-        if st.checkbox(item["label"], key=f"chk_{item['key']}"):
-            gl_keys.append(item["key"])
+# 팝오버 안에서 선언된 변수들을 바깥에서도 쓸 수 있도록 세션에 백업
+# (팝오버가 닫혀있어도 이전 값 보존)
+_genre = st.session_state.get("genre_filter", "전체")
+_keyword = st.session_state.get("keyword_filter", "")
+_per_site_limit = st.session_state.get("per_site_limit", MAX_ITEMS_PER_SITE)
+_ai_on = st.session_state.get("ai_on_toggle", False)
+# 체크박스 값도 세션에서 재계산 (팝오버 닫히면 kr_keys/gl_keys가 이전 값이 됨)
+kr_keys = [it["key"] for it in SCRAPER_REGISTRY
+           if it["group"] == "kr" and st.session_state.get(f"chk_{it['key']}")]
+gl_keys = [it["key"] for it in SCRAPER_REGISTRY
+           if it["group"] == "global" and st.session_state.get(f"chk_{it['key']}")]
+# 호환 유지용 별칭
+genre = _genre
+keyword = _keyword
+per_site_limit = _per_site_limit
+ai_on = _ai_on
 
-    st.divider()
-    st.subheader("🔎 필터")
-    genre = st.selectbox("장르", CATEGORIES, index=0)
-    keyword = st.text_input("추가 키워드 (제목/요약 검색)", "")
-    per_site_limit = st.slider("사이트당 수집 건수", 5, 20, MAX_ITEMS_PER_SITE)
-
-    st.divider()
-    ai_on = st.toggle(
-        "🤖 AI 분석 ON",
-        value=analyzer.is_available(),
-        help="ANTHROPIC_API_KEY 필요",
-    )
-    if ai_on and not analyzer.is_available():
-        st.warning(".env에 ANTHROPIC_API_KEY가 없어요")
-
-    run_btn = st.button("🔍 인기글 수집", type="primary", use_container_width=True)
-
-    st.divider()
-    st.caption("⚙️ API 키 / 데이터 출처는 **메인 화면의 '설정' 탭**을 확인하세요.")
+st.divider()
 
 
 # ---------------------------------------------------------------------------
@@ -392,14 +455,11 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 메인 — 탭 구성
+# 메인 — 페이지 분기 (_page 래디오 값에 따라)
 # ---------------------------------------------------------------------------
-tab_results, tab_saved, tab_analysis, tab_settings = st.tabs(
-    ["📊 결과", "★ 저장", "📈 분석", "⚙️ 설정"]
-)
 
 # ===== 📊 수집 결과 =====
-with tab_results:
+if _page == "📊 결과":
     summary = st.session_state.last_summary
     if summary:
         # 메타데이터 있는 항목 비율 (인기글 진위 판단)
@@ -495,7 +555,7 @@ with tab_results:
                 render_card(item, key_prefix=f"res_{idx}")
 
 # ===== ★ 저장된 소재 =====
-with tab_saved:
+elif _page == "★ 저장":
     saved_items = storage.load_all()
     sc1, sc2, sc3 = st.columns([2, 1, 1])
     sc1.markdown(f"### 저장된 소재 ({len(saved_items)}건)")
@@ -574,7 +634,7 @@ with tab_saved:
         st.info("아직 저장된 소재가 없어요. 수집 결과 탭에서 ★ 버튼으로 저장해보세요.")
 
 # ===== 📈 트렌드 분석 =====
-with tab_analysis:
+elif _page == "📈 분석":
     results = st.session_state.results
     if not results:
         st.info("먼저 수집을 실행해야 분석을 볼 수 있어요.")
@@ -663,7 +723,7 @@ with tab_analysis:
 
 
 # ===== ⚙️ 설정 =====
-with tab_settings:
+elif _page == "⚙️ 설정":
     st.header("⚙️ 설정")
 
     # -----------------------------------------------------------------------
