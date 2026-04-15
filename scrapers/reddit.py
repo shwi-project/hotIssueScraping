@@ -50,9 +50,11 @@ class RedditScraper(BaseScraper):
         return items
 
     def get_trending(self, limit: int = 10) -> list[dict]:
+        self.last_error = ""
         all_items: list[dict] = []
         urls = [self.base_url] + self.KOREA_SUBS
         per = max(1, limit // len(urls))
+        last_exc: str = ""
 
         for url in urls:
             try:
@@ -60,8 +62,12 @@ class RedditScraper(BaseScraper):
                 parsed = self._parse_json(data)
                 for it in parsed[:per]:
                     all_items.append(self._normalize(it))
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                last_exc = f"{type(exc).__name__}: {str(exc)[:100]}"
                 continue
             if len(all_items) >= limit:
                 break
+
+        if not all_items:
+            self.last_error = last_exc or "모든 서브레딧 응답 없음"
         return all_items[:limit]

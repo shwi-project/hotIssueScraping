@@ -20,16 +20,20 @@ class TiktokTrendsScraper(BaseScraper):
         return []
 
     def get_trending(self, limit: int = 10) -> list[dict]:
-        if ANTHROPIC_API_KEY:
-            items = self._fetch_via_claude(limit)
-            if items:
-                return items
-        return self._fallback(limit)
+        self.last_error = ""
+        if not ANTHROPIC_API_KEY:
+            self.last_error = "ANTHROPIC_API_KEY 없음 (TikTok은 AI 기반 수집만 지원)"
+            return []
+        items = self._fetch_via_claude(limit)
+        if not items and not self.last_error:
+            self.last_error = "Claude 응답 파싱 실패"
+        return items
 
     def _fetch_via_claude(self, limit: int) -> list[dict]:
         try:
             import anthropic
         except ImportError:
+            self.last_error = "anthropic 패키지 미설치"
             return []
 
         try:
@@ -65,12 +69,6 @@ class TiktokTrendsScraper(BaseScraper):
                 }))
             return items
         except Exception as exc:  # noqa: BLE001
+            self.last_error = f"Claude 호출 실패: {type(exc).__name__}: {str(exc)[:100]}"
             logger.info("TikTok AI fallback 실패: %s", exc)
             return []
-
-    def _fallback(self, limit: int) -> list[dict]:
-        return [self._normalize({
-            "title": "TikTok 한국 트렌드 (API 키 필요)",
-            "url": "https://www.tiktok.com/discover",
-            "summary": "ANTHROPIC_API_KEY 설정 시 AI 기반 트렌드 수집 가능",
-        })][:limit]

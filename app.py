@@ -423,9 +423,29 @@ with tab_results:
         if summary["failed"]:
             # {key: label} 룩업
             label_map = {r["key"]: r["label"] for r in SCRAPER_REGISTRY}
+
+            # 모두 실패 / 대부분 실패일 때 상단에 눈에 띄는 도움말
+            total_selected = len(summary["selected"])
+            fail_count = len(summary["failed"])
+            if fail_count == total_selected:
+                st.error(
+                    "**🚨 선택한 모든 플랫폼이 실패했어요.**\n\n"
+                    "가능성 높은 원인:\n"
+                    "1. **IP 차단** — 실행 환경(Streamlit Cloud, 공용 IP)이 봇으로 감지돼 차단됨\n"
+                    "2. **회사망 방화벽** — 커뮤니티/SNS가 네트워크 레벨에서 막힘\n"
+                    "3. **사이트 레이아웃 변경** — 스크래퍼 셀렉터 업데이트 필요\n\n"
+                    "**시도해볼 것**: 로컬 PC에서 실행, 다른 네트워크(모바일 데이터/집 Wi-Fi)에서 시도, "
+                    "Reddit·HackerNews·YouTube 같은 상대적으로 덜 막히는 소스만 선택"
+                )
+            elif fail_count >= total_selected * 0.5:
+                st.warning(
+                    f"⚠️ 선택한 {total_selected}개 중 **{fail_count}개가 실패**했어요. "
+                    "아래 사유 확인 후 실패한 플랫폼은 해제하고 다시 시도해보세요."
+                )
+
             with st.expander(
-                f"⚠️ 수집 실패 {len(summary['failed'])}개 플랫폼 — 사유 보기",
-                expanded=False,
+                f"⚠️ 수집 실패 {fail_count}개 플랫폼 — 사유 보기",
+                expanded=(fail_count == total_selected),
             ):
                 st.markdown(
                     "| 플랫폼 | 실패 사유 |\n|---|---|\n" +

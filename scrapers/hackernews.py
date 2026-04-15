@@ -17,9 +17,11 @@ class HackerNewsScraper(BaseScraper):
         return []  # 사용하지 않음
 
     def get_trending(self, limit: int = 10) -> list[dict]:
+        self.last_error = ""
         try:
             ids = self.fetch_json(self.base_url) or []
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            self.last_error = f"topstories 조회 실패: {type(exc).__name__}: {str(exc)[:100]}"
             return []
 
         ids = ids[: max(limit * 2, 20)]
@@ -56,5 +58,7 @@ class HackerNewsScraper(BaseScraper):
                 if len(items) >= limit:
                     break
 
+        if not items and not self.last_error:
+            self.last_error = "모든 story 조회 실패"
         items.sort(key=lambda x: x["score"], reverse=True)
         return items[:limit]

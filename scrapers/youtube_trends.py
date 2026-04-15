@@ -19,11 +19,15 @@ class YoutubeTrendsScraper(BaseScraper):
         return []
 
     def get_trending(self, limit: int = 10) -> list[dict]:
+        self.last_error = ""
         items: list[dict] = []
+        last_exc: str = ""
 
         # 1) RSS 시도
         try:
             feed = feedparser.parse(self.base_url)
+            if getattr(feed, "bozo", 0) and not feed.entries:
+                last_exc = f"RSS 파싱 실패: {getattr(feed, 'bozo_exception', 'unknown')}"
             for entry in feed.entries[:limit]:
                 title = entry.get("title", "")
                 url = entry.get("link", "")
@@ -44,6 +48,7 @@ class YoutubeTrendsScraper(BaseScraper):
                     "engagement": "YouTube 급상승",
                 }))
         except Exception as exc:  # noqa: BLE001
+            last_exc = f"RSS 예외: {type(exc).__name__}: {str(exc)[:80]}"
             logger.info("YouTube RSS 실패: %s", exc)
 
         if items:
@@ -73,6 +78,9 @@ class YoutubeTrendsScraper(BaseScraper):
                 if len(items) >= limit:
                     break
         except Exception as exc:  # noqa: BLE001
+            last_exc = f"HTML fallback 실패: {type(exc).__name__}: {str(exc)[:80]}"
             logger.warning("YouTube HTML fallback 실패: %s", exc)
 
+        if not items:
+            self.last_error = last_exc or "RSS/HTML 모두 결과 없음"
         return items[:limit]

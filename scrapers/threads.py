@@ -25,17 +25,21 @@ class ThreadsScraper(BaseScraper):
         return []
 
     def get_trending(self, limit: int = 10) -> list[dict]:
-        if ANTHROPIC_API_KEY:
-            items = self._fetch_via_claude(limit)
-            if items:
-                return items
-        return self._fallback(limit)
+        self.last_error = ""
+        if not ANTHROPIC_API_KEY:
+            self.last_error = "ANTHROPIC_API_KEY 없음 (Threads는 AI 기반 수집만 지원)"
+            return []
+        items = self._fetch_via_claude(limit)
+        if not items and not self.last_error:
+            self.last_error = "Claude 응답 파싱 실패"
+        return items
 
     # ------------------------------------------------------------------
     def _fetch_via_claude(self, limit: int) -> list[dict]:
         try:
             import anthropic
         except ImportError:
+            self.last_error = "anthropic 패키지 미설치"
             return []
 
         try:
@@ -70,15 +74,6 @@ class ThreadsScraper(BaseScraper):
                 }))
             return items
         except Exception as exc:  # noqa: BLE001
+            self.last_error = f"Claude 호출 실패: {type(exc).__name__}: {str(exc)[:100]}"
             logger.info("Threads AI fallback 실패: %s", exc)
             return []
-
-    def _fallback(self, limit: int) -> list[dict]:
-        placeholders = [
-            "Threads에서 급상승 중인 주제 (API 키 미설정 시 빈 결과)",
-        ]
-        return [self._normalize({
-            "title": t,
-            "url": "https://www.threads.net/",
-            "summary": "ANTHROPIC_API_KEY 설정 시 AI 기반 트렌드 수집 가능",
-        }) for t in placeholders[:limit]]

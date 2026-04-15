@@ -66,18 +66,25 @@ class PpomppuScraper(BaseScraper):
         half = max(1, limit // 2)
         # 1) 핫딜
         hot_deals = super().get_trending(limit=half)
+        deal_error = self.last_error
         for it in hot_deals:
             it["category"] = "핫딜"
 
         # 2) 자유게시판 베스트
         free_items: list[dict] = []
+        free_error = ""
         try:
             html = self.fetch(self.FREE_BEST_URL)
             parsed = self.parse(html)
             for it in parsed[:limit - len(hot_deals)]:
                 norm = self._normalize({**it, "category": "유머/밈"})
                 free_items.append(norm)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            free_error = f"{type(exc).__name__}: {str(exc)[:80]}"
 
-        return (hot_deals + free_items)[:limit]
+        combined = (hot_deals + free_items)[:limit]
+        if combined:
+            self.last_error = ""
+        else:
+            self.last_error = deal_error or free_error or "핫딜/자유베스트 모두 0건"
+        return combined

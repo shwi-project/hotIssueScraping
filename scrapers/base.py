@@ -60,11 +60,30 @@ class BaseScraper(ABC):
     # ------------------------------------------------------------------
     # HTTP
     # ------------------------------------------------------------------
+    #: 서브클래스에서 커스텀 Referer 지정 가능 (봇 차단 우회)
+    default_referer: str | None = None
+
     def _default_headers(self) -> dict[str, str]:
+        """진짜 Chrome 요청처럼 보이도록 Sec-* 헤더 포함."""
         return {
             "User-Agent": random_user_agent(),
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                "image/avif,image/webp,image/apng,*/*;q=0.8,"
+                "application/signed-exchange;v=b3;q=0.7"
+            ),
             "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Cache-Control": "max-age=0",
+            "Sec-Ch-Ua": '"Not A(Brand";v="99", "Google Chrome";v="122", "Chromium";v="122"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+            "Connection": "keep-alive",
         }
 
     def fetch(self, url: str | None = None, *, params: dict | None = None,
@@ -73,6 +92,15 @@ class BaseScraper(ABC):
         target = url or self.base_url
         merged_headers = dict(self.session.headers)
         merged_headers["User-Agent"] = random_user_agent()
+        # Referer 자동 주입 (사이트 내부 이동처럼 보이게)
+        if self.default_referer:
+            merged_headers.setdefault("Referer", self.default_referer)
+        elif target:
+            # 같은 사이트 루트를 Referer로
+            from urllib.parse import urlparse
+            p = urlparse(target)
+            if p.scheme and p.netloc:
+                merged_headers.setdefault("Referer", f"{p.scheme}://{p.netloc}/")
         if headers:
             merged_headers.update(headers)
 
