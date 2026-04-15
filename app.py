@@ -149,36 +149,24 @@ st.markdown(
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:first-child {
         flex: 1 1 auto !important;
     }
-    /* 카드 헤더 우측 컬럼 (스크랩 버튼 자리) — '★ 스크랩' 한 줄 보장 */
+    /* 카드 헤더 우측 컬럼 (★ 아이콘만) — 좁게 */
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child,
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child {
-        max-width: 140px !important;
-        min-width: 110px !important;
+        max-width: 50px !important;
+        min-width: 35px !important;
         flex: 0 0 auto !important;
-        overflow: visible !important;
     }
-    /* 버튼 본체 — compact 직접 사이즈 지정 + 줄바꿈 방지 */
-    div[class*="st-key-cardhead_"] .stButton,
+    /* ★ 버튼 본체 — 아이콘 크기 */
     div[class*="st-key-cardhead_"] .stButton button,
     div[class*="st-key-cardhead_"] button[kind],
     div[class*="st-key-cardhead_"] button[data-testid*="baseButton"] {
-        white-space: nowrap !important;
-    }
-    div[class*="st-key-cardhead_"] .stButton button,
-    div[class*="st-key-cardhead_"] button[kind],
-    div[class*="st-key-cardhead_"] button[data-testid*="baseButton"] {
-        min-height: 26px !important;
-        height: 26px !important;
-        padding: 2px 12px !important;
-        border-radius: 13px !important;
-        font-size: 0.75rem !important;
+        min-height: 24px !important;
+        height: 24px !important;
+        padding: 0 6px !important;
+        border-radius: 12px !important;
+        font-size: 0.95rem !important;
         line-height: 1 !important;
-        font-weight: 600 !important;
-        width: auto !important;
-        flex-shrink: 0 !important;
-    }
-    /* ★ 스크랩됨 표시도 한 줄 유지 */
-    div[class*="st-key-cardhead_"] div[style*="스크랩됨"] {
+        font-weight: 700 !important;
         white-space: nowrap !important;
     }
 
@@ -579,21 +567,19 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                 if show_save and url:
                     if is_saved:
                         st.markdown(
-                            "<div style='text-align:right;font-size:0.78rem;"
-                            "color:#065F46;padding-top:4px;white-space:nowrap;'>"
-                            "✅ 스크랩됨</div>",
+                            "<div style='text-align:right;font-size:1.1rem;"
+                            "padding-top:2px;'>✅</div>",
                             unsafe_allow_html=True,
                         )
                     else:
-                        # tertiary 타입(border 없음, 더 작음) 우선 시도
                         try:
                             clicked = st.button(
-                                "★ 스크랩", key=f"{key_prefix}_save",
-                                help="이 항목을 스크랩", type="tertiary",
+                                "★", key=f"{key_prefix}_save",
+                                help="스크랩", type="tertiary",
                             )
                         except (TypeError, ValueError):
                             clicked = st.button(
-                                "★ 스크랩", key=f"{key_prefix}_save", help="스크랩",
+                                "★", key=f"{key_prefix}_save", help="스크랩",
                             )
                         if clicked:
                             if storage.add_item(item):
