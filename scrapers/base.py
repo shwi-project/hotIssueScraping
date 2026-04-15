@@ -562,7 +562,9 @@ class BaseScraper(ABC):
                             parent_text = gtext
                             all_nums_str = gnums
                             parent = grandparent
-                if len(all_nums_str) < 2:
+                # 숫자가 2개 미만이어도 긴 제목(15자+)이면 실제 게시글일 확률 높음
+                # → 메타 없이도 수집 허용 (메타 0건으로 표시)
+                if len(all_nums_str) < 2 and len(title) < 15:
                     continue
 
                 # 레이블 기반 추출 — 더 많은 변형 지원

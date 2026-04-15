@@ -1,9 +1,10 @@
 """MLB파크 불펜 인기글 스크래퍼.
 
 MLB파크 HTML 특징:
-- 게시글 URL: `/mp/bbs_view.php?b=bullpen&id=숫자` (id=숫자 필수)
-- 말머리(카테고리) 링크: `/mp/b.php?b=bullpen&c=카테고리명` (숫자 아님)
-  → 말머리는 '야구', 'IT', '문화', 'VS' 등 짧은 텍스트라 필터에서도 걸러짐
+- 게시글 URL: 두 가지 주요 패턴
+  1) `/mp/bbs_view.php?b=bullpen&id=숫자`
+  2) `/mp/b.php?b=bullpen&id=숫자` (최근 형태, id는 12자리 날짜 기반)
+- 말머리(카테고리) 링크: `/mp/b.php?b=bullpen&c=카테고리명` (id 없음, c=... 로 구분)
 """
 from __future__ import annotations
 
@@ -12,9 +13,13 @@ from urllib.parse import urljoin
 
 from .base import BaseScraper
 
-_ARTICLE_RE = re.compile(r"bbs_view\.php.*(?:id|b_id)=\d+", re.I)
+# 게시글 URL: id= 다음에 6자리 이상 숫자 (말머리는 c=카테고리 라서 매칭 안 됨)
+_ARTICLE_RE = re.compile(
+    r"(?:bbs_view\.php|b\.php)\?[^#]*\bid=\d{6,}",
+    re.I,
+)
 
-# MLB파크 말머리/카테고리 — 정확 일치하면 제목이 아니라 카테고리
+# MLB파크 말머리/카테고리 — 제목이 정확히 일치하면 카테고리 오파싱으로 스킵
 _MLB_CATEGORIES = {
     # 스포츠
     "야구", "MLB", "KBO", "축구", "해축", "K리그", "EPL", "농구", "NBA",
@@ -46,23 +51,23 @@ class MlbparkScraper(BaseScraper):
 
         # 1차 결과 부족 시 link-heuristic
         if len(items) < 3:
-            seen: set[str] = set()
+            seen: set[str] = set(it.get("url", "") for it in items)
             for a in soup.find_all("a", href=True):
                 href = a["href"]
                 if not _ARTICLE_RE.search(href):
                     continue
                 title = a.get_text(" ", strip=True)
-                # 최소 10자 + 카테고리 이름 제외
-                if not title or len(title) < 10:
+                # 제목 최소 8자 (긴 실제 게시글만) + 카테고리 블랙리스트
+                if not title or len(title) < 8:
                     continue
                 if title in _MLB_CATEGORIES:
                     continue
-                if href in seen:
-                    continue
-                seen.add(href)
                 url = href if href.startswith("http") else urljoin(
                     "https://mlbpark.donga.com/mp/", href
                 )
+                if url in seen:
+                    continue
+                seen.add(url)
 
                 # 부모에서 메타 추출
                 parent = a.find_parent(["tr", "li", "div"])
@@ -70,11 +75,10 @@ class MlbparkScraper(BaseScraper):
                 if parent:
                     ptxt = parent.get_text(" ", strip=True)
                     nums = [self.to_int(n) for n in re.findall(r"[\d,]+", ptxt)]
-                    nums = [n for n in nums if n > 0]
+                    nums = [n for n in nums if 0 < n < 10_000_000]
                     if nums:
                         nums_sorted = sorted(nums, reverse=True)
-                        if len(nums_sorted) >= 1:
-                            views = nums_sorted[0]
+                        views = nums_sorted[0]
                         if len(nums_sorted) >= 2 and nums_sorted[1] < views // 2:
                             score = nums_sorted[1]
 
@@ -98,13 +102,13 @@ class MlbparkScraper(BaseScraper):
         if any(k in cls for k in ("notice", "noti", "top", "ad")):
             return None
 
-        # 제목 링크: href가 bbs_view.php + id=숫자 포함이어야 함
+        # 제목 링크: href가 bbs_view.php 또는 b.php + id=숫자 포함
         title_link = None
         for a in tr.find_all("a", href=True):
             if _ARTICLE_RE.search(a["href"]):
                 text = a.get_text(" ", strip=True)
-                # 최소 10자 + MLB 카테고리 블랙리스트 제외
-                if len(text) >= 10 and text not in _MLB_CATEGORIES:
+                # 최소 8자 + 카테고리 블랙리스트 제외
+                if len(text) >= 8 and text not in _MLB_CATEGORIES:
                     title_link = a
                     break
 
