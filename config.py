@@ -103,26 +103,26 @@ SAVED_IDEAS_PATH: Path = BASE_DIR / "saved_ideas.json"
 # 스크래퍼 레지스트리 — (key, 라벨, 카테고리, 기본 ON 여부, 컬러)
 # ---------------------------------------------------------------------------
 SCRAPER_REGISTRY: list[dict] = [
-    # 🇰🇷 국내 커뮤니티
-    {"key": "dcinside",   "label": "디시인사이드",  "group": "kr", "default": True,  "color": "#1D5A8E"},
-    {"key": "fmkorea",    "label": "에펨코리아",    "group": "kr", "default": True,  "color": "#2563EB"},
-    {"key": "ppomppu",    "label": "뽐뿌",          "group": "kr", "default": True,  "color": "#FF6B00"},
-    {"key": "ruliweb",    "label": "루리웹",        "group": "kr", "default": False, "color": "#0066CC"},
-    {"key": "theqoo",     "label": "더쿠",          "group": "kr", "default": True,  "color": "#7B2FF7"},
-    {"key": "inven",      "label": "인벤",          "group": "kr", "default": False, "color": "#00A651"},
-    {"key": "natepan",    "label": "네이트판",      "group": "kr", "default": True,  "color": "#EC2028"},
-    {"key": "arcalive",   "label": "아카라이브",    "group": "kr", "default": False, "color": "#5AC8FA"},
-    {"key": "clien",      "label": "클리앙",        "group": "kr", "default": True,  "color": "#3B82F6"},
-    {"key": "instiz",     "label": "인스티즈",      "group": "kr", "default": False, "color": "#FF69B4"},
-    {"key": "bobaedream", "label": "보배드림",      "group": "kr", "default": False, "color": "#333333"},
-    {"key": "mlbpark",    "label": "MLB파크",       "group": "kr", "default": False, "color": "#003DA5"},
-    {"key": "humoruniv",  "label": "웃긴대학",      "group": "kr", "default": False, "color": "#FFD700"},
+    # 🇰🇷 국내 커뮤니티 — 모두 기본 ON
+    {"key": "dcinside",   "label": "디시인사이드",  "group": "kr", "default": True, "color": "#1D5A8E"},
+    {"key": "fmkorea",    "label": "에펨코리아",    "group": "kr", "default": True, "color": "#2563EB"},
+    {"key": "ppomppu",    "label": "뽐뿌",          "group": "kr", "default": True, "color": "#FF6B00"},
+    {"key": "ruliweb",    "label": "루리웹",        "group": "kr", "default": True, "color": "#0066CC"},
+    {"key": "theqoo",     "label": "더쿠",          "group": "kr", "default": True, "color": "#7B2FF7"},
+    {"key": "inven",      "label": "인벤",          "group": "kr", "default": True, "color": "#00A651"},
+    {"key": "natepan",    "label": "네이트판",      "group": "kr", "default": True, "color": "#EC2028"},
+    {"key": "arcalive",   "label": "아카라이브",    "group": "kr", "default": True, "color": "#5AC8FA"},
+    {"key": "clien",      "label": "클리앙",        "group": "kr", "default": True, "color": "#3B82F6"},
+    {"key": "instiz",     "label": "인스티즈",      "group": "kr", "default": True, "color": "#FF69B4"},
+    {"key": "bobaedream", "label": "보배드림",      "group": "kr", "default": True, "color": "#333333"},
+    {"key": "mlbpark",    "label": "MLB파크",       "group": "kr", "default": True, "color": "#003DA5"},
+    {"key": "humoruniv",  "label": "웃긴대학",      "group": "kr", "default": True, "color": "#FFD700"},
     {"key": "naver_trends", "label": "네이버 트렌드", "group": "kr", "default": True, "color": "#03C75A"},
-    # 🌍 해외
-    {"key": "reddit",        "label": "Reddit",       "group": "global", "default": True,  "color": "#FF4500"},
-    {"key": "threads",       "label": "Threads",      "group": "global", "default": False, "color": "#000000"},
-    {"key": "youtube_trends","label": "YouTube 인기", "group": "global", "default": True,  "color": "#FF0000"},
-    {"key": "tiktok_trends", "label": "TikTok",       "group": "global", "default": False, "color": "#010101"},
+    # 🌍 해외 — 모두 기본 ON
+    {"key": "reddit",        "label": "Reddit",       "group": "global", "default": True, "color": "#FF4500"},
+    {"key": "threads",       "label": "Threads",      "group": "global", "default": True, "color": "#000000"},
+    {"key": "youtube_trends","label": "YouTube 인기", "group": "global", "default": True, "color": "#FF0000"},
+    {"key": "tiktok_trends", "label": "TikTok",       "group": "global", "default": True, "color": "#010101"},
 ]
 
 

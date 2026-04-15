@@ -1,7 +1,6 @@
 """🎬 쇼츠 소재 수집기 — Streamlit 메인 앱."""
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 import time
@@ -260,29 +259,6 @@ if "analysis_cache" not in st.session_state:
 
 
 # ---------------------------------------------------------------------------
-# URL 쿼리 파라미터 기반 저장 처리
-# (★ 저장 pill이 <a href="?save=xxxx">로 동작하므로 여기서 감지해서 저장)
-# ---------------------------------------------------------------------------
-def _hash_url(url: str) -> str:
-    return hashlib.md5(url.encode("utf-8")).hexdigest()[:12]
-
-
-_save_req = st.query_params.get("save")
-if _save_req:
-    for _r in st.session_state.get("results", []):
-        _u = _r.get("url") or ""
-        if _u and _hash_url(_u) == _save_req:
-            if storage.add_item(_r):
-                st.toast("저장됨", icon="⭐")
-            break
-    # URL 정리
-    try:
-        del st.query_params["save"]
-    except KeyError:
-        pass
-
-
-# ---------------------------------------------------------------------------
 # 수집 로직
 # ---------------------------------------------------------------------------
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
@@ -321,7 +297,13 @@ def collect_from(keys: tuple[str, ...], limit: int) -> dict:
 
 
 def filter_results(results: list[dict], *, category: str, keyword: str,
-                   platforms: list[str], sort: str) -> list[dict]:
+                   platforms: list[str] | None, sort: str) -> list[dict]:
+    # platforms가 None이 아니면 명시적으로 필터 (빈 리스트면 빈 결과)
+    if platforms is not None:
+        if len(platforms) == 0:
+            return []
+        results = [r for r in results if r.get("source") in platforms]
+
     out = list(results)
     if category and category != "전체":
         out = [r for r in out if r.get("category") == category]
@@ -329,8 +311,6 @@ def filter_results(results: list[dict], *, category: str, keyword: str,
         kw = keyword.strip().lower()
         out = [r for r in out
                if kw in (r.get("title", "") + " " + r.get("summary", "")).lower()]
-    if platforms:
-        out = [r for r in out if r.get("source") in platforms]
 
     def _num(r: dict, k: str) -> int:
         """메타 필드를 안전하게 정수로."""
@@ -386,7 +366,9 @@ def _toggle_group(group: str) -> None:
 # ---------------------------------------------------------------------------
 st.markdown('<div id="page-top"></div>', unsafe_allow_html=True)
 st.title("🎬 쇼츠 소재 수집기")
-st.caption("국내외 18개 인기 플랫폼에서 바이럴 콘텐츠를 수집합니다.")
+st.caption(
+    f"국내외 {len(SCRAPER_REGISTRY)}개 인기 플랫폼에서 바이럴 콘텐츠를 수집합니다."
+)
 
 # 네비게이션 (가로 래디오 — tab보다 모바일에 안정적)
 _page = st.radio(
@@ -520,27 +502,13 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
     # 메타데이터(조회/추천/댓글) 유무 확인 — 인기글 진위 판단 근거
     has_meta = any(int(item.get(k, 0) or 0) > 0 for k in ("score", "views", "comments"))
 
-    badge_parts = [
-        f'<span class="platform-badge" style="background:{color};">{source}</span>',
-        f'<span class="category-tag">{category}</span>',
-    ]
-    if not has_meta:
-        badge_parts.append(
-            '<span class="category-tag" style="background:#FEF3C7;color:#92400E;" '
-            'title="조회/추천/댓글 수치를 못 가져와서 실제 인기글 여부가 불확실해요">'
-            '⚠️ 메타없음</span>'
-        )
-    badge = "".join(badge_parts)
-
     title = item.get("title", "(제목 없음)")
     engagement = item.get("engagement", "")
     url = item.get("url", "")
-
     is_saved = storage.is_saved(url) if url else False
 
     with st.container(border=True):
-        # 헤더: 순수 HTML flex row — 플랫폼 뱃지, 카테고리, (메타없음), ✅저장됨, 🔗원문
-        # 모바일에서도 wrap되며 가로 레이아웃 유지
+        # 헤더: HTML flex row — [플랫폼 뱃지][카테고리][(메타없음)][(✅저장됨)]
         header_bits = [
             f'<span class="platform-badge" style="background:{color};">{source}</span>',
             f'<span class="category-tag">{category}</span>',
@@ -550,16 +518,8 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                 '<span class="category-tag warn" title="조회/추천/댓글 수치 없음">'
                 '⚠️ 메타없음</span>'
             )
-        # 저장 상태별 pill 추가 (제목이 이미 링크이므로 원문 pill 생략)
-        if show_save and url:
-            if is_saved:
-                header_bits.append('<span class="saved-pill">✅ 저장됨</span>')
-            else:
-                save_id = _hash_url(url)
-                header_bits.append(
-                    f'<a href="?save={save_id}" target="_self" class="save-pill" '
-                    f'title="저장">★ 저장</a>'
-                )
+        if is_saved:
+            header_bits.append('<span class="saved-pill">✅ 저장됨</span>')
         st.markdown(
             '<div class="card-header">' + "".join(header_bits) + '</div>',
             unsafe_allow_html=True,
@@ -609,6 +569,16 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                             st.session_state.results[i] = analyzed
                             break
                 st.rerun()
+
+        # 저장 버튼 — 저장 안 된 경우만, 카드 우측 하단에 작게
+        if show_save and url and not is_saved:
+            sc1, sc2 = st.columns([3, 1])
+            with sc2:
+                if st.button("★ 저장", key=f"{key_prefix}_save",
+                             use_container_width=True):
+                    if storage.add_item(item):
+                        st.toast("저장됨", icon="⭐")
+                        st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -682,12 +652,12 @@ if _page == "📊 결과":
     results = st.session_state.results
     if not results:
         st.info(
-            "사이드바에서 플랫폼을 선택하고 **'인기글 수집'** 버튼을 눌러보세요.\n\n"
-            "📱 모바일에서는 왼쪽 위의 **>** (또는 ☰) 아이콘을 눌러 사이드바를 열어주세요."
+            "상단의 **⚙️ 플랫폼·필터·수집** 팝오버에서 플랫폼을 확인하고 "
+            "**🔍 수집** 버튼을 눌러주세요."
         )
     else:
         all_sources = sorted({r.get("source", "") for r in results if r.get("source")})
-        st.markdown("##### 플랫폼 (탭하여 켜기/끄기)")
+        st.markdown("##### 플랫폼 (탭하여 켜기/끄기 — 모두 끄면 결과 숨김)")
         # st.pills (1.36+) — 뱃지 토글 형태. 없으면 multiselect로 폴백
         try:
             selected_platforms = st.pills(
