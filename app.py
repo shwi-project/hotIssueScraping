@@ -132,32 +132,51 @@ st.markdown(
     }
     .link-pill:hover { background: #D1D5DB; }
 
-    /* ★ 카드 헤더 영역 (st.container(key=cardhead_*)) — 좁은 범위 CSS */
-    /* 모바일에서도 가로 유지 + 버튼 작게 (다른 버튼 영향 없음) */
+    /* ★ 카드 헤더 영역 — 컴팩트 + 가로 유지 + 모든 wrapper 여백 제거 */
+    div[class*="st-key-cardhead_"],
+    div[class*="st-key-cardhead_"] > div,
+    div[class*="st-key-cardhead_"] [data-testid="stVerticalBlock"],
+    div[class*="st-key-cardhead_"] [data-testid="stVerticalBlockBorderWrapper"],
+    div[class*="st-key-cardhead_"] [data-testid="element-container"],
+    div[class*="st-key-cardhead_"] [data-testid="stColumn"],
+    div[class*="st-key-cardhead_"] [data-testid="column"],
+    div[class*="st-key-cardhead_"] .stButton {
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        min-height: 0 !important;
+    }
+    /* 헤더 row 가로 유지 (모바일에서도) */
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] {
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         align-items: center !important;
-        gap: 4px !important;
+        gap: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: 0 !important;
     }
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"],
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        width: auto !important;
-        flex: 0 1 auto !important;
+        flex: 0 0 auto !important;
         min-width: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
     }
     div[class*="st-key-cardhead_"] div[data-testid="stHorizontalBlock"] > div:first-child {
         flex: 1 1 auto !important;
     }
-    /* 카드 헤더 안의 ★ 버튼만 뱃지 크기로 — 다른 버튼은 원래 크기 */
+    /* ★ 버튼 본체 — 미니 pill (높이 22, 폭 auto) */
     div[class*="st-key-cardhead_"] .stButton > button {
-        min-height: 28px !important;
-        height: 28px !important;
-        padding: 0 10px !important;
-        border-radius: 14px !important;
-        font-size: 0.9rem !important;
+        min-height: 22px !important;
+        height: 22px !important;
+        width: auto !important;
+        padding: 0 8px !important;
+        border-radius: 11px !important;
+        font-size: 0.75rem !important;
         line-height: 1 !important;
         font-weight: 700 !important;
+        margin: 0 !important;
     }
 
     /* 사이드바 완전 숨김 (모든 컨트롤 메인 영역으로 이동) */
@@ -536,9 +555,9 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
     is_saved = storage.is_saved(url) if url else False
 
     with st.container(border=True):
-        # 헤더: 좌측 뱃지 row + 우측 ★/✅ 버튼 (key로 CSS scope)
+        # 헤더: 좌측 뱃지 row + 우측 ★/✅ 미니 버튼 (key로 CSS scope)
         with st.container(key=f"cardhead_{key_prefix}"):
-            head_l, head_r = st.columns([8, 1])
+            head_l, head_r = st.columns([12, 1])
             with head_l:
                 header_bits = [
                     f'<span class="platform-badge" style="background:{color};">{source}</span>',
@@ -557,13 +576,11 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                 if show_save and url:
                     if is_saved:
                         st.markdown(
-                            "<div style='text-align:right;font-size:1rem;padding-top:2px;'>"
-                            "✅</div>",
+                            "<div style='text-align:right;font-size:0.85rem;'>✅</div>",
                             unsafe_allow_html=True,
                         )
                     else:
-                        if st.button("★", key=f"{key_prefix}_save",
-                                     help="저장", use_container_width=True):
+                        if st.button("★", key=f"{key_prefix}_save", help="저장"):
                             if storage.add_item(item):
                                 st.toast("저장됨", icon="⭐")
                                 st.rerun()
