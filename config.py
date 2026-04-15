@@ -104,14 +104,14 @@ SAVED_IDEAS_PATH: Path = BASE_DIR / "saved_ideas.json"
 # ---------------------------------------------------------------------------
 SCRAPER_REGISTRY: list[dict] = [
     # 🇰🇷 국내 커뮤니티 — 모두 기본 ON
-    # (아카라이브/더쿠/에펨코리아 제거 — Cloudflare/자체 방화벽으로 Streamlit Cloud에서 접근 불가)
+    # (제거된 플랫폼:
+    #   - 아카라이브/더쿠/에펨코리아: Cloudflare/자체 방화벽으로 Streamlit Cloud 접근 불가
+    #   - 루리웹/인스티즈: HTML 구조 파악 불가로 지속적 파싱 실패)
     {"key": "dcinside",   "label": "디시인사이드",  "group": "kr", "default": True, "color": "#1D5A8E"},
     {"key": "ppomppu",    "label": "뽐뿌",          "group": "kr", "default": True, "color": "#FF6B00"},
-    {"key": "ruliweb",    "label": "루리웹",        "group": "kr", "default": True, "color": "#0066CC"},
     {"key": "inven",      "label": "인벤",          "group": "kr", "default": True, "color": "#00A651"},
     {"key": "natepan",    "label": "네이트판",      "group": "kr", "default": True, "color": "#EC2028"},
     {"key": "clien",      "label": "클리앙",        "group": "kr", "default": True, "color": "#3B82F6"},
-    {"key": "instiz",     "label": "인스티즈",      "group": "kr", "default": True, "color": "#FF69B4"},
     {"key": "bobaedream", "label": "보배드림",      "group": "kr", "default": True, "color": "#333333"},
     {"key": "mlbpark",    "label": "MLB파크",       "group": "kr", "default": True, "color": "#003DA5"},
     {"key": "humoruniv",  "label": "웃긴대학",      "group": "kr", "default": True, "color": "#FFD700"},

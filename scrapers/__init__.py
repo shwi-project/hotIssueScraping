@@ -9,14 +9,12 @@ from .bobaedream import BobaedreamScraper
 from .clien import ClienScraper
 from .dcinside import DcinsideScraper
 from .humoruniv import HumorunivScraper
-from .instiz import InstizScraper
 from .inven import InvenScraper
 from .mlbpark import MlbparkScraper
 from .natepan import NatepanScraper
 from .naver_trends import NaverTrendsScraper
 from .ppomppu import PpomppuScraper
 from .reddit import RedditScraper
-from .ruliweb import RuliwebScraper
 from .threads import ThreadsScraper
 from .tiktok_trends import TiktokTrendsScraper
 from .youtube_trends import YoutubeTrendsScraper
@@ -25,11 +23,9 @@ from .youtube_trends import YoutubeTrendsScraper
 SCRAPER_CLASSES: dict[str, type[BaseScraper]] = {
     "dcinside": DcinsideScraper,
     "ppomppu": PpomppuScraper,
-    "ruliweb": RuliwebScraper,
     "inven": InvenScraper,
     "natepan": NatepanScraper,
     "clien": ClienScraper,
-    "instiz": InstizScraper,
     "bobaedream": BobaedreamScraper,
     "mlbpark": MlbparkScraper,
     "humoruniv": HumorunivScraper,
