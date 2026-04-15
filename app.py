@@ -79,6 +79,27 @@ st.markdown(
     }
     .stars { color: #F59E0B; }
 
+    /* 카드 헤더의 뱃지형 액션 */
+    .saved-pill {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        background: #D1FAE5;
+        color: #065F46;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .link-pill {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        background: #E5E7EB;
+        color: #374151 !important;
+        font-size: 0.9rem;
+        text-decoration: none !important;
+    }
+    .link-pill:hover { background: #D1D5DB; }
+
     /* 사이드바 완전 숨김 (모든 컨트롤 메인 영역으로 이동) */
     section[data-testid="stSidebar"] { display: none !important; }
     div[data-testid="collapsedControl"] { display: none !important; }
@@ -101,6 +122,32 @@ st.markdown(
     }
     div[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
         display: none; /* 래디오 동그라미 숨김 */
+    }
+
+    /* 버튼 기본은 뱃지(pill) 크기로 — 카드 내 ★/🔗/AI 분석 등이 작게 보이게 */
+    .stButton > button {
+        min-height: 30px !important;
+        height: 30px !important;
+        padding: 0 12px !important;
+        border-radius: 15px !important;
+        font-size: 0.85rem !important;
+        font-weight: 600 !important;
+        line-height: 1 !important;
+    }
+    /* primary 버튼(수집 등)은 원래 크기 유지 */
+    .stButton > button[kind="primary"] {
+        min-height: 44px !important;
+        height: auto !important;
+        padding: 8px 18px !important;
+        border-radius: 8px !important;
+        font-size: 1rem !important;
+    }
+    /* 카드 내 ★ 저장 버튼 — 플랫폼 뱃지와 같은 느낌으로 */
+    button[kind="secondary"][aria-label*="저장"],
+    button[data-testid="baseButton-secondary"][title*="저장"] {
+        background: #FEF3C7 !important;
+        border: 1px solid #F59E0B !important;
+        color: #92400E !important;
     }
 
     /* 수집 요약 한 줄 */
@@ -163,6 +210,21 @@ st.markdown(
             width: 100% !important;
             flex: 1 1 100% !important;
             min-width: 0 !important;
+        }
+        /* 카드 헤더 row는 가로 유지 (badges + save/link 아이콘) */
+        .card-header-wrap div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            gap: 6px !important;
+        }
+        .card-header-wrap div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"],
+        .card-header-wrap div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            width: auto !important;
+            flex: 0 1 auto !important;
+        }
+        .card-header-wrap div[data-testid="stHorizontalBlock"] > div:first-child {
+            flex: 1 1 auto !important;
         }
         /* 카드/제목 약간 축소 */
         .item-title { font-size: 0.95rem; }
@@ -460,33 +522,35 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
     url = item.get("url", "")
 
     with st.container(border=True):
-        # 헤더: [뱃지들] .... [★ 저장] [🔗 원문]
-        header_l, header_r = st.columns([5, 2])
+        # 헤더: [뱃지들] ... [★ 저장/✅] [🔗]  — 모바일에서도 가로 유지
+        st.markdown('<div class="card-header-wrap">', unsafe_allow_html=True)
+        header_l, header_save, header_link = st.columns([6, 1, 1])
         with header_l:
             st.markdown(badge, unsafe_allow_html=True)
-        with header_r:
-            # 작은 아이콘 버튼 2개 배치
-            btn_c1, btn_c2 = st.columns(2)
+        with header_save:
             if show_save:
                 already = storage.is_saved(url) if url else False
                 if already:
-                    btn_c1.markdown(
-                        "<div style='text-align:right; font-size:1rem; padding-top:2px;'>"
-                        "✅</div>",
+                    st.markdown(
+                        '<div style="text-align:center; padding-top:5px;">'
+                        '<span class="saved-pill">✅</span></div>',
                         unsafe_allow_html=True,
                     )
                 else:
-                    if btn_c1.button("★", key=f"{key_prefix}_save", help="저장"):
+                    if st.button("★", key=f"{key_prefix}_save", help="저장",
+                                 use_container_width=True):
                         if storage.add_item(item):
                             st.toast("저장됨", icon="⭐")
                             st.rerun()
+        with header_link:
             if url:
-                btn_c2.markdown(
-                    f'<div style="text-align:right; padding-top:4px;">'
+                st.markdown(
+                    f'<div style="text-align:center; padding-top:6px;">'
                     f'<a href="{url}" target="_blank" title="원문 보기" '
-                    f'style="font-size:1rem; text-decoration:none;">🔗</a></div>',
+                    f'class="link-pill">🔗</a></div>',
                     unsafe_allow_html=True,
                 )
+        st.markdown('</div>', unsafe_allow_html=True)
 
         if url:
             st.markdown(f'<div class="item-title"><a href="{url}" target="_blank">{title}</a></div>',
