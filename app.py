@@ -103,6 +103,48 @@ st.markdown(
         display: none; /* 래디오 동그라미 숨김 */
     }
 
+    /* 수집 요약 한 줄 */
+    .summary-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        padding: 10px 14px;
+        background: #F9FAFB;
+        border: 1px solid #E5E7EB;
+        border-radius: 10px;
+        margin-bottom: 12px;
+        font-size: 0.9rem;
+        white-space: nowrap;
+    }
+    .summary-row span { display: inline-flex; align-items: center; gap: 3px; }
+    .summary-row b { color: #111827; }
+
+    /* 맨 위로 가기 버튼 (floating) */
+    .back-to-top {
+        position: fixed;
+        right: 18px;
+        bottom: 72px;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: #3B82F6;
+        color: white !important;
+        font-size: 1.3rem;
+        font-weight: 700;
+        text-align: center;
+        line-height: 48px;
+        text-decoration: none;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+        z-index: 9999;
+        opacity: 0.92;
+        transition: background 0.2s, transform 0.2s;
+    }
+    .back-to-top:hover {
+        background: #2563EB;
+        transform: scale(1.08);
+        color: white !important;
+    }
+
     /* ---------- 📱 모바일 대응 ---------- */
     @media (max-width: 768px) {
         /* 메인 블록 좌우 여백 축소 */
@@ -265,6 +307,7 @@ def _toggle_group(group: str) -> None:
 # ---------------------------------------------------------------------------
 # 메인 상단: 타이틀 + 네비게이션 + 팝오버 컨트롤
 # ---------------------------------------------------------------------------
+st.markdown('<div id="page-top"></div>', unsafe_allow_html=True)
 st.title("🎬 쇼츠 소재 수집기")
 st.caption("국내외 18개 인기 플랫폼에서 바이럴 콘텐츠를 수집합니다.")
 
@@ -417,7 +460,34 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
     url = item.get("url", "")
 
     with st.container(border=True):
-        st.markdown(badge, unsafe_allow_html=True)
+        # 헤더: [뱃지들] .... [★ 저장] [🔗 원문]
+        header_l, header_r = st.columns([5, 2])
+        with header_l:
+            st.markdown(badge, unsafe_allow_html=True)
+        with header_r:
+            # 작은 아이콘 버튼 2개 배치
+            btn_c1, btn_c2 = st.columns(2)
+            if show_save:
+                already = storage.is_saved(url) if url else False
+                if already:
+                    btn_c1.markdown(
+                        "<div style='text-align:right; font-size:1rem; padding-top:2px;'>"
+                        "✅</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    if btn_c1.button("★", key=f"{key_prefix}_save", help="저장"):
+                        if storage.add_item(item):
+                            st.toast("저장됨", icon="⭐")
+                            st.rerun()
+            if url:
+                btn_c2.markdown(
+                    f'<div style="text-align:right; padding-top:4px;">'
+                    f'<a href="{url}" target="_blank" title="원문 보기" '
+                    f'style="font-size:1rem; text-decoration:none;">🔗</a></div>',
+                    unsafe_allow_html=True,
+                )
+
         if url:
             st.markdown(f'<div class="item-title"><a href="{url}" target="_blank">{title}</a></div>',
                         unsafe_allow_html=True)
@@ -452,29 +522,14 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                     st.markdown(f"**활용도 점수**: <span class='stars'>{stars}</span> ({score}/5)",
                                 unsafe_allow_html=True)
         elif analyzer.is_available():
-            # 개별 분석 버튼
-            if st.button("🤖 이 항목만 AI 분석", key=f"{key_prefix}_single"):
+            if st.button("🤖 AI 분석", key=f"{key_prefix}_single"):
                 with st.spinner("분석 중…"):
                     analyzed = analyzer.analyze_single(item)
-                    # 세션 결과 갱신
                     for i, r in enumerate(st.session_state.results):
                         if r.get("url") == item.get("url"):
                             st.session_state.results[i] = analyzed
                             break
                 st.rerun()
-
-        cols = st.columns([1, 1, 3])
-        if show_save:
-            already = storage.is_saved(url)
-            if already:
-                cols[0].markdown("✅ 저장됨")
-            else:
-                if cols[0].button("★ 저장", key=f"{key_prefix}_save"):
-                    if storage.add_item(item):
-                        st.toast("저장됨", icon="⭐")
-                        st.rerun()
-        if url:
-            cols[1].markdown(f"[🔗 원문]({url})")
 
 
 # ---------------------------------------------------------------------------
@@ -493,17 +548,17 @@ if _page == "📊 결과":
         total_items = len(st.session_state.results) or 1
         meta_pct = int(with_meta / total_items * 100)
 
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("총 수집", f"{summary['total']}건")
-        c2.metric("소요 시간", f"{summary['elapsed']:.1f}s")
-        c3.metric("성공 플랫폼", f"{len(summary['success'])}")
-        c4.metric("실패 플랫폼", f"{len(summary['failed'])}")
-        c5.metric(
-            "메타 보유율",
-            f"{meta_pct}%",
-            help="조회/추천/댓글 수치가 정상 파싱된 항목 비율. "
-                 "낮으면 스크래퍼가 실제 인기글 페이지가 아닌 것을 수집했을 가능성.",
-        )
+        # 수집 요약 — 모바일까지 한 줄로 compact
+        summary_html = f"""
+<div class="summary-row" title="수집 요약">
+    <span>📦 <b>{summary['total']}</b>건</span>
+    <span>⏱ <b>{summary['elapsed']:.1f}</b>s</span>
+    <span>✅ <b>{len(summary['success'])}</b>성공</span>
+    <span>❌ <b>{len(summary['failed'])}</b>실패</span>
+    <span>📊 메타 <b>{meta_pct}</b>%</span>
+</div>
+"""
+        st.markdown(summary_html, unsafe_allow_html=True)
 
         if summary["failed"]:
             # {key: label} 룩업
@@ -553,13 +608,26 @@ if _page == "📊 결과":
         )
     else:
         all_sources = sorted({r.get("source", "") for r in results if r.get("source")})
-        fc1, fc2 = st.columns([3, 1])
-        selected_platforms = fc1.multiselect(
-            "플랫폼 필터",
-            options=all_sources,
-            default=all_sources,
-        )
-        sort_by = fc2.selectbox(
+        st.markdown("##### 플랫폼 (탭하여 켜기/끄기)")
+        # st.pills (1.36+) — 뱃지 토글 형태. 없으면 multiselect로 폴백
+        try:
+            selected_platforms = st.pills(
+                label="플랫폼 필터",
+                options=all_sources,
+                selection_mode="multi",
+                default=all_sources,
+                label_visibility="collapsed",
+                key="platform_pills",
+            )
+        except (AttributeError, TypeError):
+            selected_platforms = st.multiselect(
+                "플랫폼 필터",
+                options=all_sources,
+                default=all_sources,
+                label_visibility="collapsed",
+            )
+
+        sort_by = st.selectbox(
             "정렬",
             ["인기순", "추천순", "조회순", "댓글순", "최신순"],
             help="기본은 인기순(추천·조회·댓글 종합). 메타 없는 항목은 자동으로 뒤로 밀립니다.",
@@ -1057,3 +1125,10 @@ SCRAPECREATORS_API_KEY=sk_...
         "💡 **'메타없음' 배지가 많이 보이면** 해당 사이트가 차단·레이아웃 변경됐을 가능성이 높아요. "
         "위 API 키들을 설정하면 차단 문제 대부분 해결됩니다."
     )
+
+
+# ===== ⬆ 맨 위로 가기 플로팅 버튼 (모든 페이지 공통, 항상 우측 하단 표시) =====
+st.markdown(
+    '<a href="#page-top" class="back-to-top" title="맨 위로">⬆</a>',
+    unsafe_allow_html=True,
+)
