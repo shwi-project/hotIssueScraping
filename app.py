@@ -449,6 +449,17 @@ def _toggle_group(group: str) -> None:
             st.session_state[f"chk_{it['key']}"] = new_val
 
 
+def _sync_master(group: str) -> None:
+    """마스터 체크박스 상태를 개별 체크박스 상태와 동기화.
+    모든 개별이 체크됐으면 마스터도 체크, 아니면 해제.
+    (마스터 체크박스를 렌더링하기 직전에 호출해야 함)"""
+    all_checked = all(
+        st.session_state.get(f"chk_{it['key']}", it["default"])
+        for it in SCRAPER_REGISTRY if it["group"] == group
+    )
+    st.session_state[f"{group}_all"] = all_checked
+
+
 # ---------------------------------------------------------------------------
 # 메인 상단: 타이틀 + 네비게이션 + 팝오버 컨트롤
 # ---------------------------------------------------------------------------
@@ -472,6 +483,7 @@ pop_col1, pop_col2 = st.columns([3, 1])
 with pop_col1:
     with st.popover("⚙️ 플랫폼 · 필터 · 수집", use_container_width=True):
         st.markdown("### 🇰🇷 국내 커뮤니티")
+        _sync_master("kr")  # 개별 체크박스 상태와 동기화
         st.checkbox(
             "전체 선택/해제",
             key="kr_all",
@@ -488,6 +500,7 @@ with pop_col1:
                     kr_keys.append(item["key"])
 
         st.markdown("### 🌍 해외 플랫폼")
+        _sync_master("global")  # 개별 체크박스 상태와 동기화
         st.checkbox(
             "전체 선택/해제",
             key="global_all",
