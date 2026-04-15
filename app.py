@@ -138,26 +138,29 @@ if "analysis_cache" not in st.session_state:
 def collect_from(keys: tuple[str, ...], limit: int) -> dict:
     """선택된 플랫폼에서 인기글 수집 (캐시)."""
     results: list[dict] = []
-    success, failed = [], []
+    success: list[str] = []
+    failed: list[dict] = []  # [{"key": ..., "reason": ...}]
 
-    def _run(key: str) -> tuple[str, list[dict]]:
+    def _run(key: str) -> tuple[str, list[dict], str]:
         scraper = get_scraper(key)
         if scraper is None:
-            return key, []
+            return key, [], "스크래퍼 구현 없음"
         try:
-            return key, scraper.get_trending(limit=limit)
-        except Exception:  # noqa: BLE001
-            return key, []
+            items = scraper.get_trending(limit=limit)
+            reason = scraper.last_error if not items else ""
+            return key, items, reason
+        except Exception as exc:  # noqa: BLE001
+            return key, [], f"{type(exc).__name__}: {str(exc)[:120]}"
 
     with ThreadPoolExecutor(max_workers=8) as ex:
         futures = {ex.submit(_run, k): k for k in keys}
         for fut in as_completed(futures):
-            key, items = fut.result()
+            key, items, reason = fut.result()
             if items:
                 success.append(key)
                 results.extend(items)
             else:
-                failed.append(key)
+                failed.append({"key": key, "reason": reason or "알 수 없는 실패"})
 
     return {
         "items": results,
@@ -187,6 +190,24 @@ def filter_results(results: list[dict], *, category: str, keyword: str,
 
 
 # ---------------------------------------------------------------------------
+# 사이드바: 플랫폼 체크박스 세션 상태 초기화 (한 번만)
+# ---------------------------------------------------------------------------
+for _item in SCRAPER_REGISTRY:
+    _k = f"chk_{_item['key']}"
+    if _k not in st.session_state:
+        st.session_state[_k] = _item["default"]
+
+
+def _toggle_group(group: str) -> None:
+    """'전체 선택/해제' 체크박스 콜백 — 해당 그룹의 개별 체크박스를 일괄 변경."""
+    master_key = f"{group}_all"
+    new_val = st.session_state.get(master_key, False)
+    for it in SCRAPER_REGISTRY:
+        if it["group"] == group:
+            st.session_state[f"chk_{it['key']}"] = new_val
+
+
+# ---------------------------------------------------------------------------
 # 사이드바
 # ---------------------------------------------------------------------------
 with st.sidebar:
@@ -195,33 +216,32 @@ with st.sidebar:
 
     # --- 플랫폼 선택 ---
     st.subheader("🇰🇷 국내 커뮤니티")
-    kr_all = st.checkbox("전체 선택/해제", value=False, key="kr_all")
+    st.checkbox(
+        "전체 선택/해제",
+        key="kr_all",
+        on_change=_toggle_group,
+        args=("kr",),
+    )
     kr_keys: list[str] = []
     for item in SCRAPER_REGISTRY:
         if item["group"] != "kr":
             continue
-        default = kr_all if st.session_state.get("kr_all_applied") != st.session_state.kr_all else item["default"]
-        # "전체 선택/해제" 토글 ON이면 체크박스 기본값을 True로 밀어줌
-        val = st.checkbox(
-            item["label"],
-            value=kr_all or item["default"],
-            key=f"chk_{item['key']}",
-        )
-        if val:
+        if st.checkbox(item["label"], key=f"chk_{item['key']}"):
             kr_keys.append(item["key"])
 
     st.divider()
     st.subheader("🌍 해외 플랫폼")
+    st.checkbox(
+        "전체 선택/해제",
+        key="global_all",
+        on_change=_toggle_group,
+        args=("global",),
+    )
     gl_keys: list[str] = []
     for item in SCRAPER_REGISTRY:
         if item["group"] != "global":
             continue
-        val = st.checkbox(
-            item["label"],
-            value=item["default"],
-            key=f"chk_{item['key']}",
-        )
-        if val:
+        if st.checkbox(item["label"], key=f"chk_{item['key']}"):
             gl_keys.append(item["key"])
 
     st.divider()
@@ -240,6 +260,46 @@ with st.sidebar:
         st.warning(".env에 ANTHROPIC_API_KEY가 없어요")
 
     run_btn = st.button("🔍 인기글 수집", type="primary", use_container_width=True)
+
+    st.divider()
+    with st.expander("⚙️ API 키 설정 가이드", expanded=False):
+        st.markdown(
+            """
+**현재 앱이 사용하는 API 키는 1개입니다.**
+
+### 🔑 `ANTHROPIC_API_KEY`  _(필수 기능 한정)_
+- **형식**: `sk-ant-api03-XXXXXXXXXX…` (약 108자)
+- **발급**: [console.anthropic.com](https://console.anthropic.com) → API Keys
+- **용도**
+  - 🤖 AI 분석 (요약·쇼츠 아이디어·해시태그)
+  - 🧵 Threads 수집 (웹 기반 대체)
+  - 🎵 TikTok 수집 (웹 기반 대체)
+- **없어도 되는 기능**: 디시/에펨/더쿠 등 국내 커뮤니티 + Reddit + HN + YouTube RSS 수집은 **키 없이 동작**
+
+---
+
+### 🛠️ 로컬에서 설정
+프로젝트 루트의 `.env` 파일에 추가:
+```
+ANTHROPIC_API_KEY=sk-ant-api03-XXXXX...
+```
+
+### ☁️ Streamlit Cloud 배포 시
+앱 관리 → **Settings → Secrets** 에 같은 형식으로 추가:
+```toml
+ANTHROPIC_API_KEY = "sk-ant-api03-XXXXX..."
+```
+
+---
+
+### 💡 추후 확장 시 쓸 수 있는 (현재 미사용) 키
+| 키 이름 | 용도 | 형식 |
+|--------|------|------|
+| `YOUTUBE_API_KEY` | YouTube Data API v3 (RSS 대체) | `AIzaSy…` (39자) |
+| `REDDIT_CLIENT_ID` / `REDDIT_SECRET` | Reddit OAuth (레이트 상향) | 무료 등록 |
+| `SCRAPECREATORS_API_KEY` | Threads/TikTok 정식 API | `sk_…` |
+            """
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -361,16 +421,23 @@ with tab_results:
         c4.metric("실패 플랫폼", f"{len(summary['failed'])}")
 
         if summary["failed"]:
-            failed_labels = []
-            for k in summary["failed"]:
-                for r in SCRAPER_REGISTRY:
-                    if r["key"] == k:
-                        failed_labels.append(r["label"])
-                        break
-            st.warning(
-                f"⚠️ 수집 실패한 플랫폼: {', '.join(failed_labels)}  "
-                "(차단/레이아웃 변경 가능성 — 회사망에서는 일부 사이트가 막혀있을 수 있어요)"
-            )
+            # {key: label} 룩업
+            label_map = {r["key"]: r["label"] for r in SCRAPER_REGISTRY}
+            with st.expander(
+                f"⚠️ 수집 실패 {len(summary['failed'])}개 플랫폼 — 사유 보기",
+                expanded=False,
+            ):
+                st.markdown(
+                    "| 플랫폼 | 실패 사유 |\n|---|---|\n" +
+                    "\n".join(
+                        f"| **{label_map.get(f['key'], f['key'])}** | {f['reason']} |"
+                        for f in summary["failed"]
+                    )
+                )
+                st.caption(
+                    "💡 자주 보이는 원인: `HTTP 403/429` (봇 차단) · `연결 실패` (회사망 차단 또는 DNS) · "
+                    "`파싱 결과 0건` (사이트 레이아웃 변경)"
+                )
 
     results = st.session_state.results
     if not results:

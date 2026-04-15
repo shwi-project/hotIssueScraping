@@ -54,6 +54,8 @@ class BaseScraper(ABC):
     def __init__(self) -> None:
         self.session = requests.Session()
         self.session.headers.update(self._default_headers())
+        #: 마지막 수집에서 발생한 에러 메시지 (비어있으면 성공/미실행)
+        self.last_error: str = ""
 
     # ------------------------------------------------------------------
     # HTTP
@@ -121,12 +123,30 @@ class BaseScraper(ABC):
 
     def get_trending(self, limit: int = 10) -> list[dict]:
         """스크래퍼 엔트리 포인트. 예외 발생 시 빈 리스트 반환."""
+        self.last_error = ""
         try:
             html = self.fetch()
             items = self.parse(html)
+        except requests.HTTPError as exc:
+            code = exc.response.status_code if exc.response is not None else "?"
+            self.last_error = f"HTTP {code} ({exc.request.url if exc.request else self.base_url})"
+            logger.warning("[%s] %s", self.source, self.last_error)
+            return []
+        except requests.ConnectionError:
+            self.last_error = "연결 실패 (차단/네트워크/DNS)"
+            logger.warning("[%s] %s", self.source, self.last_error)
+            return []
+        except requests.Timeout:
+            self.last_error = f"타임아웃 ({REQUEST_TIMEOUT}s 초과)"
+            logger.warning("[%s] %s", self.source, self.last_error)
+            return []
         except Exception as exc:  # noqa: BLE001 — 의도적 광역 캐치
+            self.last_error = f"{type(exc).__name__}: {str(exc)[:120]}"
             logger.warning("[%s] 수집 실패: %s", self.source, exc)
             return []
+
+        if not items:
+            self.last_error = "파싱 결과 0건 (레이아웃 변경 가능성)"
 
         out: list[dict] = []
         for it in items[:limit]:
