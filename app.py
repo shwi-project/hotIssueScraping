@@ -29,7 +29,7 @@ st.set_page_config(
     page_title="🎬 쇼츠 소재 수집기",
     page_icon="🎬",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",  # 모바일에서는 자동으로 접힘
 )
 
 # ---------------------------------------------------------------------------
@@ -77,6 +77,44 @@ st.markdown(
         margin-bottom: 4px;
     }
     .stars { color: #F59E0B; }
+
+    /* ---------- 📱 모바일 대응 ---------- */
+    @media (max-width: 768px) {
+        /* 메인 블록 좌우 여백 축소 */
+        .block-container {
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+            padding-top: 1rem !important;
+        }
+        /* 카드 그리드를 세로로 적층 (3열 → 1열) */
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: column !important;
+            gap: 0.4rem !important;
+        }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"],
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+            min-width: 0 !important;
+        }
+        /* 카드/제목 약간 축소 */
+        .item-title { font-size: 0.95rem; }
+        .item-card { padding: 10px 12px; }
+        /* 탭 라벨 compact */
+        button[data-baseweb="tab"] {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+            font-size: 0.9rem !important;
+        }
+        /* 메트릭도 좁은 화면에서 세로 나열되도록 */
+        [data-testid="stMetric"] {
+            padding: 4px 0;
+        }
+        /* 사이드바가 열렸을 때 반투명 오버레이 더 어둡게 */
+        section[data-testid="stSidebar"] {
+            width: 85vw !important;
+        }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -336,7 +374,10 @@ with tab_results:
 
     results = st.session_state.results
     if not results:
-        st.info("👈 왼쪽 사이드바에서 플랫폼을 선택하고 '인기글 수집' 버튼을 눌러보세요.")
+        st.info(
+            "사이드바에서 플랫폼을 선택하고 **'인기글 수집'** 버튼을 눌러보세요.\n\n"
+            "📱 모바일에서는 왼쪽 위의 **>** (또는 ☰) 아이콘을 눌러 사이드바를 열어주세요."
+        )
     else:
         all_sources = sorted({r.get("source", "") for r in results if r.get("source")})
         fc1, fc2 = st.columns([3, 1])
