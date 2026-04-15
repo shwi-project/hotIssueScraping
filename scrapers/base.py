@@ -52,7 +52,15 @@ class BaseScraper(ABC):
     encoding: str | None = None
 
     def __init__(self) -> None:
-        self.session = requests.Session()
+        # cloudscraper가 있으면 Cloudflare JS 챌린지 자동 해결 (더쿠/에펨 등)
+        try:
+            import cloudscraper
+            self.session = cloudscraper.create_scraper(
+                browser={"browser": "chrome", "platform": "windows", "mobile": False},
+                delay=1,
+            )
+        except Exception:  # noqa: BLE001 — 미설치 또는 초기화 실패 시 fallback
+            self.session = requests.Session()
         self.session.headers.update(self._default_headers())
         #: 마지막 수집에서 발생한 에러 메시지 (비어있으면 성공/미실행)
         self.last_error: str = ""

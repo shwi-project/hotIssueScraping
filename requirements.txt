@@ -10,3 +10,4 @@ matplotlib>=3.8.0
 lxml>=5.1.0
 fake-useragent>=1.4.0
 plotly>=5.18.0
+cloudscraper>=1.2.71

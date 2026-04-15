@@ -1,15 +1,16 @@
 """YouTube 한국 인기 급상승.
 
 우선순위:
-1) GOOGLE_API_KEY 설정 → YouTube Data API v3 (공식, 정확)
-2) RSS 피드 시도
-3) HTML fallback
+1) GOOGLE_API_KEY (또는 YOUTUBE_API_KEY) → YouTube Data API v3 (권장)
+2) HTML 페이지 파싱 (fallback)
+
+※ 과거엔 RSS `chart=trending` 을 시도했으나 YouTube가 공식적으로 비활성화해서
+   `not well-formed` 파싱 오류가 잦으므로 제거.
 """
 from __future__ import annotations
 
 import logging
-
-import feedparser
+import re
 
 from config import get_google_key
 
@@ -20,69 +21,58 @@ logger = logging.getLogger(__name__)
 
 class YoutubeTrendsScraper(BaseScraper):
     source = "YouTube 인기"
-    base_url = "https://www.youtube.com/feeds/videos.xml?chart=trending&geo=KR"
+    base_url = "https://www.youtube.com/feed/trending?gl=KR&hl=ko"
     category = "연예"
 
     API_URL = "https://www.googleapis.com/youtube/v3/videos"
 
     def parse(self, html: str) -> list[dict]:
-        return []
+        """HTML fallback — JSON-in-HTML 에서 videoId/title 추출."""
+        pattern = re.compile(
+            r'"videoId":"([^"]+)"[^}]{0,200}?"title":\{"runs":\[\{"text":"([^"]{5,200})"'
+        )
+        seen: set[str] = set()
+        items: list[dict] = []
+        for m in pattern.finditer(html):
+            vid, title = m.group(1), m.group(2)
+            if vid in seen:
+                continue
+            seen.add(vid)
+            items.append({
+                "title": title,
+                "url": f"https://www.youtube.com/watch?v={vid}",
+                "thumbnail": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                "engagement": "YouTube 급상승",
+            })
+            if len(items) >= 50:
+                break
+        return items
 
     def get_trending(self, limit: int = 10) -> list[dict]:
         self.last_error = ""
-        last_exc = ""
 
-        # 1) Google API 시도
+        # 1) Google API (권장)
         google_key = get_google_key()
         if google_key:
             try:
                 items = self._fetch_via_api(google_key, limit)
                 if items:
                     return items
+                self.last_error = "YouTube API 응답 없음"
             except Exception as exc:  # noqa: BLE001
-                last_exc = f"YouTube Data API 실패: {type(exc).__name__}: {str(exc)[:100]}"
-                logger.warning(last_exc)
+                self.last_error = f"YouTube Data API 실패: {type(exc).__name__}: {str(exc)[:100]}"
+                logger.warning(self.last_error)
 
-        # 2) RSS 시도
-        try:
-            feed = feedparser.parse(self.base_url)
-            items = self._parse_rss_entries(feed.entries, limit)
-            if items:
-                return items
-            if getattr(feed, "bozo", 0):
-                last_exc = last_exc or f"RSS 파싱 실패: {getattr(feed, 'bozo_exception', 'unknown')}"
-        except Exception as exc:  # noqa: BLE001
-            last_exc = last_exc or f"RSS 예외: {type(exc).__name__}: {str(exc)[:80]}"
+        # 2) HTML fallback
+        fallback = super().get_trending(limit=limit)
+        if fallback:
+            return fallback
 
-        # 3) HTML fallback
-        try:
-            html = self.fetch("https://www.youtube.com/feed/trending?gl=KR&hl=ko")
-            import re
-            pattern = re.compile(
-                r'"videoId":"([^"]+)"[^}]{0,200}?"title":\{"runs":\[\{"text":"([^"]{5,200})"'
+        if not self.last_error:
+            self.last_error = (
+                "GOOGLE_API_KEY 설정 권장. HTML fallback도 실패 "
+                "(YouTube가 봇으로 감지하는 중)"
             )
-            seen: set[str] = set()
-            items: list[dict] = []
-            for m in pattern.finditer(html):
-                vid, title = m.group(1), m.group(2)
-                if vid in seen:
-                    continue
-                seen.add(vid)
-                items.append(self._normalize({
-                    "title": title,
-                    "url": f"https://www.youtube.com/watch?v={vid}",
-                    "thumbnail": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
-                    "engagement": "YouTube 급상승",
-                }))
-                if len(items) >= limit:
-                    break
-            if items:
-                return items
-        except Exception as exc:  # noqa: BLE001
-            last_exc = last_exc or f"HTML fallback: {type(exc).__name__}: {str(exc)[:80]}"
-            logger.warning("YouTube HTML fallback 실패: %s", exc)
-
-        self.last_error = last_exc or "모든 경로 수집 실패. GOOGLE_API_KEY 설정 권장"
         return []
 
     # ------------------------------------------------------------------
@@ -122,26 +112,5 @@ class YoutubeTrendsScraper(BaseScraper):
                 "engagement": self.format_engagement(
                     score=likes, views=views, comments=comments
                 ),
-            }))
-        return items
-
-    def _parse_rss_entries(self, entries, limit: int) -> list[dict]:
-        items: list[dict] = []
-        for entry in entries[:limit]:
-            title = entry.get("title", "")
-            url = entry.get("link", "")
-            summary = entry.get("summary", "") or entry.get("author", "")
-            if not title:
-                continue
-            thumb = ""
-            media = entry.get("media_thumbnail") or []
-            if media:
-                thumb = media[0].get("url", "")
-            items.append(self._normalize({
-                "title": title,
-                "url": url,
-                "summary": summary,
-                "thumbnail": thumb,
-                "engagement": "YouTube 급상승",
             }))
         return items

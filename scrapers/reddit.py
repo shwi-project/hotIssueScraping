@@ -149,7 +149,15 @@ class RedditScraper(BaseScraper):
                 break
 
         if not all_items:
-            self.last_error = last_exc or (
-                "Reddit 차단 가능성. REDDIT_CLIENT_ID/SECRET 설정 권장"
-            )
+            # 403 Blocked는 Streamlit Cloud 공용 IP가 Reddit 블랙리스트에 올라간 전형적 증상
+            if "403" in last_exc or "Blocked" in last_exc:
+                self.last_error = (
+                    "Reddit이 공용 IP를 차단함. "
+                    "설정 탭에서 REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET 발급 후 "
+                    "Streamlit Secrets에 등록하면 OAuth 경로로 우회 가능."
+                )
+            else:
+                self.last_error = last_exc or (
+                    "Reddit 차단 가능성. REDDIT_CLIENT_ID/SECRET 설정 권장"
+                )
         return all_items[:limit]
