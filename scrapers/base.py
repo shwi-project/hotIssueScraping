@@ -256,6 +256,19 @@ class BaseScraper(ABC):
                 if title.endswith(suf):
                     return True
 
+        # 4-2) 짧고 공백 없는 2어절 합성어 메뉴 ("오늘특가", "인기핫딜", "최신글" 등)
+        # - 공백이 없고 길이 3-8자인데 '글/특가/핫딜/순위/랭킹/추천/신상' 끝
+        if 3 <= len(title) <= 8 and " " not in title:
+            nav_endings = (
+                "핫딜", "특가", "할인", "세일", "이벤트",
+                "순위", "랭킹", "추천", "신상",
+                "최신글", "인기글", "인기순", "최신순", "조회순", "추천순",
+                "목록", "리스트",
+            )
+            for suf in nav_endings:
+                if title.endswith(suf):
+                    return True
+
         # 5) 업체명으로 시작하는 광고 ("준준모터스 중고순정부품" 등)
         first_word = title.split()[0] if title.split() else ""
         for suf in self.SHOP_NAME_SUFFIXES:

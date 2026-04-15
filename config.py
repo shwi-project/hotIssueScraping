@@ -120,7 +120,6 @@ SCRAPER_REGISTRY: list[dict] = [
     {"key": "naver_trends", "label": "네이버 트렌드", "group": "kr", "default": True, "color": "#03C75A"},
     # 🌍 해외
     {"key": "reddit",        "label": "Reddit",       "group": "global", "default": True,  "color": "#FF4500"},
-    {"key": "hackernews",    "label": "Hacker News",  "group": "global", "default": False, "color": "#FF6600"},
     {"key": "threads",       "label": "Threads",      "group": "global", "default": False, "color": "#000000"},
     {"key": "youtube_trends","label": "YouTube 인기", "group": "global", "default": True,  "color": "#FF0000"},
     {"key": "tiktok_trends", "label": "TikTok",       "group": "global", "default": False, "color": "#010101"},

@@ -520,7 +520,7 @@ if _page == "📊 결과":
                     "2. **사이트 레이아웃 변경** — 스크래퍼 셀렉터 업데이트 필요\n"
                     "3. **일시적 장애 / 레이트 리밋** — 잠시 후 재시도\n\n"
                     "**시도해볼 것**: 로컬 PC에서 실행, 수집 건수를 줄여서 재시도, "
-                    "Reddit · Hacker News · YouTube 같은 공개 API 기반 소스만 선택"
+                    "Reddit · YouTube 같은 공개 API 기반 소스만 선택"
                 )
             elif fail_count >= total_selected * 0.5:
                 st.warning(

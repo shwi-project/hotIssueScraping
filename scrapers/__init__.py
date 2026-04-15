@@ -10,7 +10,6 @@ from .bobaedream import BobaedreamScraper
 from .clien import ClienScraper
 from .dcinside import DcinsideScraper
 from .fmkorea import FmkoreaScraper
-from .hackernews import HackerNewsScraper
 from .humoruniv import HumorunivScraper
 from .instiz import InstizScraper
 from .inven import InvenScraper
@@ -42,7 +41,6 @@ SCRAPER_CLASSES: dict[str, type[BaseScraper]] = {
     "humoruniv": HumorunivScraper,
     "naver_trends": NaverTrendsScraper,
     "reddit": RedditScraper,
-    "hackernews": HackerNewsScraper,
     "threads": ThreadsScraper,
     "youtube_trends": YoutubeTrendsScraper,
     "tiktok_trends": TiktokTrendsScraper,
