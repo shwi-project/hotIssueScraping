@@ -180,17 +180,25 @@ class BaseScraper(ABC):
         return BeautifulSoup(html, "lxml")
 
     # ------------------------------------------------------------------
-    # 공지/광고 필터
+    # 공지/광고/네비게이션 필터
     # ------------------------------------------------------------------
-    #: 제목에서 이 키워드/패턴이 발견되면 공지/광고로 간주하고 제외
+    #: 대괄호/괄호 안에 이 단어들이 포함되면 공지로 간주 (정규식 기반)
+    _NOTICE_BRACKET_WORDS = (
+        r"공지|안내|알림|필독|운영|관리|중요|주의|정보|보안|점검|"
+        r"이벤트|광고|공식|EVENT|event|notice|NOTICE|AD|ad|admin"
+    )
+    _NOTICE_REGEX = __import__("re").compile(
+        rf"[\[\(【]\s*[^\]\)】]*(?:{_NOTICE_BRACKET_WORDS})[^\]\)】]*\s*[\]\)】]"
+    )
+
+    #: 제목에서 이 키워드/패턴이 발견되면 공지/광고로 간주하고 제외 (레거시, 빠른 검색)
     NOTICE_PATTERNS: list[str] = [
-        # 명시적 공지/알림 태그
         "[공지]", "(공지)", "【공지】", "공지)", "공지]",
         "[필독]", "(필독)", "[안내]", "(안내)", "[알림]", "(알림)",
+        "[보안안내]", "[운영공지]", "[필독공지]", "[업데이트]",
         "[운영]", "[관리]", "[중요]", "[주의]", "[정보]",
         "[이벤트]", "(이벤트)", "[EVENT]", "[event]",
         "[광고]", "(광고)", "[AD]", "(AD)", "[ad]", "광고문의",
-        # 영문
         "notice:", "[notice]", "(notice)",
     ]
     #: 제목/요약에서 발견되면 광고/모집글로 간주
@@ -200,20 +208,42 @@ class BaseScraper(ABC):
         "무료상담", "무료진단", "무료체험", "후원금", "기부",
         "구매대행", "제휴문의", "업체 문의", "업체문의",
     ]
+    #: 제목이 이런 접미사로 끝나면 '게시판 네비게이션 링크'로 간주
+    NAV_SUFFIXES: tuple[str, ...] = (
+        "게시판", "광장", "마당", "포털", "포럼", "플라자",
+        "커뮤니티", "갤러리", "뽐뿌", "공유", "토크",
+    )
 
     def _is_notice_or_ad(self, item: dict) -> bool:
-        """공지/광고/모집글 여부 판단."""
+        """공지/광고/모집/네비게이션 링크 여부 판단."""
         title = (item.get("title") or "").strip()
         if not title:
-            return True  # 빈 제목은 그냥 제외
+            return True  # 빈 제목은 제외
+
+        # 1) 정규식 — 대괄호/괄호 내 공지성 단어 ([보안안내], [운영공지] 등)
+        if self._NOTICE_REGEX.search(title):
+            return True
+
+        # 2) 레거시 문자열 리스트
         lower = title.lower()
         for pat in self.NOTICE_PATTERNS:
             if pat.lower() in lower:
                 return True
+
+        # 3) 광고/모집 키워드
         for kw in self.AD_KEYWORDS:
             if kw in title:
                 return True
+
+        # 4) 네비게이션 메뉴 링크 ("쿠폰게시판", "휴대폰뽐뿌" 등)
+        # - 짧은 제목(15자 미만)이 네비게이션 접미사로 끝나는 경우
+        if len(title) < 15:
+            for suf in self.NAV_SUFFIXES:
+                if title.endswith(suf):
+                    return True
+
         return False
+
 
     # ------------------------------------------------------------------
     # 파이프라인
@@ -298,10 +328,12 @@ class BaseScraper(ABC):
             return []
 
         base_netloc = urlparse(self.base_url).netloc
+        # 게시글 URL의 공통 패턴 — 숫자 ID가 꼭 있어야 함 (게시판 선택용 ?id=coupon 같은 건 제외)
         article_href_re = re.compile(
-            r"(?:^|/)\d{4,}(?:[/?]|$)"           # /12345 또는 /12345?
-            r"|(?:id|no|wr_id|articleid)=\d+"    # ?id=123, ?no=123
-            r"|/(?:view|article|read|board|post|thread)/",
+            r"(?:^|/)\d{5,}(?:[/?]|$)"              # /12345+ 숫자 5자리 이상 path
+            r"|(?:no|wr_id|articleid|post_id|thread_id|tid|doc|document_srl)=\d+"
+            r"|/(?:view|article|read|post|thread|document)/\d+"
+            r"|view\.php\?[^#]*no=\d+",             # view.php?no=...
             re.I,
         )
         items: list[dict] = []
