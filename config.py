@@ -18,23 +18,56 @@ load_dotenv(BASE_DIR / ".env")
 ANTHROPIC_API_KEY: str | None = os.getenv("ANTHROPIC_API_KEY")
 
 
-def get_anthropic_key() -> str | None:
-    """현재 유효한 Anthropic API 키를 반환. 우선순위:
-    1) os.environ["ANTHROPIC_API_KEY"] (앱 실행 중 UI에서 입력 시 여기에 저장)
-    2) Streamlit secrets (배포 환경)
-    3) .env 파일 값 (import 시점에 로드됨)
-    """
-    env_val = os.getenv("ANTHROPIC_API_KEY")
-    if env_val:
-        return env_val
-    # Streamlit secrets (있을 때만)
+def _get_key(*names: str) -> str | None:
+    """여러 이름 중 하나라도 찾으면 반환. os.environ → st.secrets 우선순위."""
+    for name in names:
+        v = os.getenv(name)
+        if v:
+            return v
     try:
         import streamlit as st
-        if "ANTHROPIC_API_KEY" in st.secrets:
-            return st.secrets["ANTHROPIC_API_KEY"]
+        for name in names:
+            try:
+                if name in st.secrets:
+                    return st.secrets[name]
+            except Exception:  # noqa: BLE001
+                pass
     except Exception:  # noqa: BLE001
         pass
-    return ANTHROPIC_API_KEY
+    return None
+
+
+def get_anthropic_key() -> str | None:
+    """AI 분석, Threads/TikTok 수집에 필수."""
+    return _get_key("ANTHROPIC_API_KEY") or ANTHROPIC_API_KEY
+
+
+def get_google_key() -> str | None:
+    """YouTube Data API v3 등 구글 API용 키 (GOOGLE_API_KEY 또는 YOUTUBE_API_KEY)."""
+    return _get_key("GOOGLE_API_KEY", "YOUTUBE_API_KEY")
+
+
+def get_reddit_creds() -> tuple[str, str] | None:
+    """Reddit OAuth (script type) — 레이트 리밋 상향. (client_id, client_secret)."""
+    cid = _get_key("REDDIT_CLIENT_ID")
+    sec = _get_key("REDDIT_CLIENT_SECRET")
+    if cid and sec:
+        return cid, sec
+    return None
+
+
+def get_naver_creds() -> tuple[str, str] | None:
+    """네이버 개발자 오픈 API. (client_id, client_secret)."""
+    cid = _get_key("NAVER_CLIENT_ID")
+    sec = _get_key("NAVER_CLIENT_SECRET")
+    if cid and sec:
+        return cid, sec
+    return None
+
+
+def get_scrapecreators_key() -> str | None:
+    """Threads/TikTok 정식 스크래핑 API (유료)."""
+    return _get_key("SCRAPECREATORS_API_KEY")
 
 # ---------------------------------------------------------------------------
 # 스크래핑 파라미터

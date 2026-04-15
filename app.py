@@ -724,105 +724,231 @@ elif _page == "📈 분석":
 
 # ===== ⚙️ 설정 =====
 elif _page == "⚙️ 설정":
-    st.header("⚙️ 설정")
-
-    # -----------------------------------------------------------------------
-    # 섹션 1) API 키 관리
-    # -----------------------------------------------------------------------
-    st.subheader("🔑 API 키 관리")
-
-    current_key = os.getenv("ANTHROPIC_API_KEY", "")
-    masked = (
-        f"{current_key[:12]}…{current_key[-4:]}"
-        if current_key and len(current_key) > 20
-        else ("입력됨" if current_key else "미설정")
+    from config import (
+        get_anthropic_key, get_google_key, get_reddit_creds,
+        get_naver_creds, get_scrapecreators_key,
     )
 
-    col_k1, col_k2 = st.columns([3, 1])
-    with col_k1:
-        if current_key:
-            st.success(f"✅ ANTHROPIC_API_KEY 설정됨 ({masked})")
-        else:
-            st.error("❌ ANTHROPIC_API_KEY 미설정 — 아래에 입력하세요")
+    st.header("⚙️ 설정")
+    st.caption(
+        "**API 키는 모두 필수입니다.** 키가 없으면 해당 플랫폼 수집이 안 되거나 "
+        "차단으로 실패할 확률이 높아요. 아래 가이드대로 발급받고 "
+        "**Streamlit Cloud Secrets** 또는 **로컬 `.env`** 에 저장하세요."
+    )
 
-    with col_k2:
-        if current_key and st.button("🗑️ 키 제거", use_container_width=True):
-            os.environ.pop("ANTHROPIC_API_KEY", None)
-            st.rerun()
-
-    with st.form("api_key_form", clear_on_submit=True):
-        new_key = st.text_input(
-            "ANTHROPIC_API_KEY 입력",
-            type="password",
-            placeholder="sk-ant-api03-XXXXXXXXXXXX...",
-            help="형식: sk-ant-api03로 시작하는 약 108자 문자열",
-        )
-        submitted = st.form_submit_button("💾 저장", type="primary")
-        if submitted:
-            new_key = (new_key or "").strip()
-            if not new_key:
-                st.warning("키가 비어있어요.")
-            elif not new_key.startswith("sk-ant-"):
-                st.error("형식이 올바르지 않아요. `sk-ant-`로 시작해야 합니다.")
+    # 현재 키 상태 한눈에
+    status_map = {
+        "🧠 Anthropic (AI 분석, Threads/TikTok)": bool(get_anthropic_key()),
+        "📺 Google (YouTube Data API v3)": bool(get_google_key()),
+        "👽 Reddit OAuth": bool(get_reddit_creds()),
+        "🟢 Naver Open API": bool(get_naver_creds()),
+        "✨ ScrapeCreators (선택, 유료)": bool(get_scrapecreators_key()),
+    }
+    st.markdown("### 🔑 현재 키 상태")
+    cols = st.columns(len(status_map))
+    for i, (name, ok) in enumerate(status_map.items()):
+        with cols[i]:
+            if ok:
+                st.success(f"✅ {name}")
             else:
-                os.environ["ANTHROPIC_API_KEY"] = new_key
-                st.success("✅ 저장 완료! AI 분석 기능이 활성화됩니다. "
-                           "(이 세션이 끝나면 사라지니, 영구 저장은 아래 방법 참고)")
-                st.rerun()
+                st.error(f"❌ {name}")
 
     st.divider()
 
     # -----------------------------------------------------------------------
-    # 섹션 2) ANTHROPIC API 키 발급 방법
+    # Anthropic
     # -----------------------------------------------------------------------
-    st.subheader("📝 ANTHROPIC API 키 발급 및 영구 설정")
+    with st.expander("🧠 ANTHROPIC_API_KEY — AI 분석 / Threads / TikTok", expanded=True):
+        st.markdown(
+            """
+**사용 범위**
+- 🤖 쇼츠 아이디어 AI 분석 (요약·해시태그·활용도 점수)
+- 🧵 Threads 인기 포스트 수집
+- 🎵 TikTok 트렌드 수집
 
-    st.markdown(
-        """
-### 🎯 발급 방법 (3분 소요)
+**키 형식**: `sk-ant-api03-XXXXXXXXX…` (약 108자)
+
+### 📝 발급 단계 (3분)
 1. <https://console.anthropic.com> 접속 → 계정 생성/로그인
-2. 왼쪽 메뉴 → **API Keys** 클릭
-3. 오른쪽 상단 **Create Key** 버튼 클릭
-4. 키 이름 입력 (예: `shorts-collector`) → **Create Key**
-5. 표시된 키(`sk-ant-api03-…`)를 **즉시 복사** — 창 닫으면 다시 못 봐요
-6. 위 입력창에 붙여넣기 → 저장
+2. 왼쪽 메뉴 **API Keys** → 오른쪽 상단 **Create Key** 클릭
+3. 키 이름 지정 (예: `shorts-collector`) → **Create Key**
+4. 표시된 `sk-ant-api03-…` 키를 **즉시 복사** (창 닫으면 다시 못 봐요)
 
-> 💡 가입 직후 **무료 크레딧 $5** 제공 (이 앱 용도로는 수천 번 분석 가능)
+💡 가입 시 **무료 크레딧 $5** 제공 (이 앱 기준 수천 회 분석 가능)
 
----
+### ☁️ Streamlit Cloud에 등록
+앱 매니저 → **⋮ → Settings → Secrets** 에 붙여넣기:
+```toml
+ANTHROPIC_API_KEY = "sk-ant-api03-XXXXX..."
+```
+저장 → 앱 자동 재시작 → 즉시 반영.
 
-### 🌐 Streamlit Cloud 배포 시 영구 설정
-
-**위 입력창에 저장한 키는 브라우저 세션에서만 유효**합니다.
-배포 후에도 계속 쓰려면 다음 중 하나를 설정하세요.
-
-#### 방법 A — Streamlit Cloud Secrets (권장)
-1. Streamlit Cloud 대시보드 → 배포된 앱 → **⋮ → Settings → Secrets**
-2. 아래 한 줄 붙여넣기:
-   ```toml
-   ANTHROPIC_API_KEY = "sk-ant-api03-XXXXX..."
-   ```
-3. **Save** → 앱 자동 재시작 → 영구 반영
-
-#### 방법 B — 로컬 `.env` 파일
-프로젝트 루트에 `.env` 파일 만들기:
+### 💻 로컬 `.env`
 ```
 ANTHROPIC_API_KEY=sk-ant-api03-XXXXX...
 ```
-→ `streamlit run app.py` 실행 시 자동 로드됨
+            """
+        )
 
----
+    # -----------------------------------------------------------------------
+    # Google / YouTube
+    # -----------------------------------------------------------------------
+    with st.expander("📺 GOOGLE_API_KEY — YouTube Data API v3", expanded=True):
+        st.markdown(
+            """
+**사용 범위**
+- 📺 YouTube 한국 인기 급상승 영상 (공식 API, 가장 정확)
+- 영상별 조회수·좋아요·댓글수까지 정상 수집
 
-### 🔒 보안 주의
-- `.env` 파일은 이미 `.gitignore`에 포함 → 실수로 커밋 안 됨
-- 키 유출 의심 시 즉시 [console.anthropic.com](https://console.anthropic.com) → API Keys → **Revoke**
-        """
-    )
+**키 형식**: `AIzaSy...` (39자 알파벳+숫자)
+
+### 📝 발급 단계 (5분)
+1. <https://console.cloud.google.com> 접속 (Google 계정 필요)
+2. 상단 드롭다운 → **New Project** → 프로젝트 생성 (예: `shorts-collector`)
+3. 왼쪽 메뉴 → **APIs & Services → Library**
+4. 검색창에 `YouTube Data API v3` → 클릭 → **Enable**
+5. 왼쪽 메뉴 → **APIs & Services → Credentials**
+6. 상단 **+ CREATE CREDENTIALS → API key** 클릭
+7. 표시된 키 복사 (`AIzaSy…`)
+8. (권장) 만든 키 **Edit** → **Application restrictions: None**,
+   **API restrictions: Restrict key → YouTube Data API v3 만 체크** → Save
+
+💡 YouTube Data API는 **무료 할당량 하루 10,000 유닛** (인기 영상 조회 1 유닛당 1~5회)
+→ 이 앱으로는 일일 수천 번 호출 가능
+
+### ☁️ Streamlit Cloud에 등록
+```toml
+GOOGLE_API_KEY = "AIzaSy..."
+```
+
+### 💻 로컬 `.env`
+```
+GOOGLE_API_KEY=AIzaSy...
+```
+
+> 💡 `YOUTUBE_API_KEY` 라는 이름으로 저장해도 자동 인식됩니다.
+            """
+        )
+
+    # -----------------------------------------------------------------------
+    # Reddit
+    # -----------------------------------------------------------------------
+    with st.expander("👽 REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET — Reddit OAuth", expanded=True):
+        st.markdown(
+            """
+**사용 범위**
+- 🌐 Reddit r/popular + r/korea + r/hanguk 수집 (OAuth 인증)
+- 공개 `.json` 엔드포인트는 Streamlit Cloud 공용 IP에서 자주 차단됨
+- OAuth 인증 시 **분당 60회 → 600회**로 레이트 리밋 10배 상승
+
+**키 형식**: `client_id` (14자), `client_secret` (27자) — 무료
+
+### 📝 발급 단계 (3분)
+1. <https://www.reddit.com/prefs/apps> 접속 (Reddit 계정 필요)
+2. 맨 아래 **create another app…** 또는 **create app...** 클릭
+3. 폼 작성:
+   - **name**: `shorts-collector`
+   - **type**: 🔘 **script** 선택 (중요)
+   - **description**: (비워둬도 됨)
+   - **about url**: (비워둬도 됨)
+   - **redirect uri**: `http://localhost:8080` (쓰이진 않지만 필수)
+4. **create app** 클릭
+5. 생성된 앱에서:
+   - 앱 이름 바로 아래 **`personal use script`** 글자 위의 문자열 = `CLIENT_ID`
+   - **`secret`** 옆의 문자열 = `CLIENT_SECRET`
+
+### ☁️ Streamlit Cloud에 등록
+```toml
+REDDIT_CLIENT_ID = "xxxxxxxxxxxxxx"
+REDDIT_CLIENT_SECRET = "xxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+### 💻 로컬 `.env`
+```
+REDDIT_CLIENT_ID=xxxxxxxxxxxxxx
+REDDIT_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+            """
+        )
+
+    # -----------------------------------------------------------------------
+    # Naver
+    # -----------------------------------------------------------------------
+    with st.expander("🟢 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET — 네이버 개발자 API", expanded=True):
+        st.markdown(
+            """
+**사용 범위**
+- 📰 네이버 뉴스 검색 API (오늘의 핫 이슈 실시간 수집)
+- HTML 스크래핑 대비 훨씬 안정적 (차단 없음)
+
+**키 형식**: `CLIENT_ID` (20자), `CLIENT_SECRET` (10자) — 무료
+
+### 📝 발급 단계 (5분)
+1. <https://developers.naver.com/apps/#/register> 접속 (네이버 로그인 필요)
+2. **애플리케이션 이름**: `shorts-collector`
+3. **사용 API 선택**: **검색** (Search) 체크 ✅
+4. **환경 추가**:
+   - 🔘 **WEB 설정** 선택
+   - 서비스 URL: `http://localhost:8501` (Streamlit 배포 URL로 바꿔도 OK)
+5. **이용약관 동의** → **등록** 클릭
+6. 생성된 앱 상세 화면에 표시됨:
+   - **Client ID** 복사
+   - **Client Secret** → **보기** 클릭 후 복사
+
+💡 **하루 25,000회** 무료 호출 제공
+
+### ☁️ Streamlit Cloud에 등록
+```toml
+NAVER_CLIENT_ID = "XXXXXXXXXXXXXXXXXXXX"
+NAVER_CLIENT_SECRET = "XXXXXXXXXX"
+```
+
+### 💻 로컬 `.env`
+```
+NAVER_CLIENT_ID=XXXXXXXXXXXXXXXXXXXX
+NAVER_CLIENT_SECRET=XXXXXXXXXX
+```
+            """
+        )
+
+    # -----------------------------------------------------------------------
+    # ScrapeCreators (선택)
+    # -----------------------------------------------------------------------
+    with st.expander("✨ SCRAPECREATORS_API_KEY — Threads/TikTok 정식 데이터 (유료, 선택)", expanded=False):
+        st.markdown(
+            """
+**사용 범위**
+- 🧵 Threads 실제 포스트 / 좋아요 수 / 작성자
+- 🎵 TikTok 실제 영상 / 조회수 / 해시태그
+
+> ⚠️ **이 키가 없으면** Threads/TikTok은 Anthropic 기반 AI 추정으로 동작 (정확도 낮음)
+
+**키 형식**: `sk_…`
+
+### 📝 발급 단계
+1. <https://scrapecreators.com> 접속
+2. **Sign Up** → 이메일 가입
+3. Dashboard → **API Keys** → **Generate**
+4. 복사
+
+💡 **무료 플랜: 월 100회 호출** / 유료 플랜 $29~
+
+### ☁️ Streamlit Cloud에 등록
+```toml
+SCRAPECREATORS_API_KEY = "sk_..."
+```
+
+### 💻 로컬 `.env`
+```
+SCRAPECREATORS_API_KEY=sk_...
+```
+            """
+        )
 
     st.divider()
 
     # -----------------------------------------------------------------------
-    # 섹션 3) 수집 대상 URL (투명성)
+    # 수집 대상 URL (투명성)
     # -----------------------------------------------------------------------
     st.subheader("🔍 수집 대상 URL (데이터 출처)")
     st.caption(
@@ -843,6 +969,10 @@ ANTHROPIC_API_KEY=sk-ant-api03-XXXXX...
             extra = " + 자유게시판 베스트"
         elif key == "reddit":
             extra = " + r/korea, r/hanguk"
+        elif key == "youtube_trends":
+            extra = " (또는 YouTube Data API)"
+        elif key == "naver_trends":
+            extra = " (또는 Naver Open API)"
         url_rows.append({
             "그룹": "🇰🇷" if reg["group"] == "kr" else "🌍",
             "플랫폼": reg["label"],
@@ -865,22 +995,5 @@ ANTHROPIC_API_KEY=sk-ant-api03-XXXXX...
 
     st.info(
         "💡 **'메타없음' 배지가 많이 보이면** 해당 사이트가 차단·레이아웃 변경됐을 가능성이 높아요. "
-        "위 링크를 직접 열어보고 실제 페이지와 수집 결과를 비교해보세요."
+        "위 API 키들을 설정하면 차단 문제 대부분 해결됩니다."
     )
-
-    st.divider()
-
-    # -----------------------------------------------------------------------
-    # 섹션 4) 추후 확장 시 쓸 수 있는 API 키 (선택)
-    # -----------------------------------------------------------------------
-    with st.expander("💡 추후 확장 시 쓸 수 있는 (현재 미사용) 선택 API 키"):
-        st.markdown(
-            """
-| 키 이름 | 용도 | 형식 예 | 발급처 |
-|--------|------|--------|--------|
-| `YOUTUBE_API_KEY` | YouTube Data API v3 (RSS 대체) | `AIzaSy…` (39자) | Google Cloud Console |
-| `REDDIT_CLIENT_ID` / `REDDIT_SECRET` | Reddit OAuth (레이트 상향) | 무료 등록 | reddit.com/prefs/apps |
-| `SCRAPECREATORS_API_KEY` | Threads/TikTok 정식 API | `sk_…` | scrapecreators.com |
-| `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 검색 트렌드 API | 무료 | developers.naver.com |
-            """
-        )
