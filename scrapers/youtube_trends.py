@@ -28,23 +28,31 @@ class YoutubeTrendsScraper(BaseScraper):
 
     def parse(self, html: str) -> list[dict]:
         """HTML fallback — JSON-in-HTML 에서 videoId/title 추출."""
-        pattern = re.compile(
-            r'"videoId":"([^"]+)"[^}]{0,200}?"title":\{"runs":\[\{"text":"([^"]{5,200})"'
+        # 패턴 1: 일반적인 ytInitialData 구조
+        pattern1 = re.compile(
+            r'"videoId":"([A-Za-z0-9_-]{11})"[^}]{0,400}?"title":\{"runs":\[\{"text":"([^"]{5,200})"'
+        )
+        # 패턴 2: simpleText 방식
+        pattern2 = re.compile(
+            r'"videoId":"([A-Za-z0-9_-]{11})"[^}]{0,400}?"title":\{"simpleText":"([^"]{5,200})"'
         )
         seen: set[str] = set()
         items: list[dict] = []
-        for m in pattern.finditer(html):
-            vid, title = m.group(1), m.group(2)
-            if vid in seen:
-                continue
-            seen.add(vid)
-            items.append({
-                "title": title,
-                "url": f"https://www.youtube.com/watch?v={vid}",
-                "thumbnail": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
-                "engagement": "YouTube 급상승",
-            })
-            if len(items) >= 50:
+        for pattern in (pattern1, pattern2):
+            for m in pattern.finditer(html):
+                vid, title = m.group(1), m.group(2)
+                if vid in seen:
+                    continue
+                seen.add(vid)
+                items.append({
+                    "title": title,
+                    "url": f"https://www.youtube.com/watch?v={vid}",
+                    "thumbnail": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                    "engagement": "YouTube 급상승",
+                })
+                if len(items) >= 50:
+                    break
+            if items:
                 break
         return items
 
@@ -89,6 +97,7 @@ class YoutubeTrendsScraper(BaseScraper):
                 "part": "snippet,statistics",
                 "chart": "mostPopular",
                 "regionCode": "KR",
+                "hl": "ko",
                 "maxResults": min(max(limit, 10), 50),
                 "key": key,
             },

@@ -166,7 +166,12 @@ class BaseScraper(ABC):
             try:
                 response.encoding = self.encoding
             except Exception:  # noqa: BLE001 — curl_cffi Response는 encoding 속성 다를 수 있음
-                pass
+                # curl_cffi는 .encoding 속성 할당을 지원하지 않으므로 content를 직접 디코딩
+                try:
+                    time.sleep(REQUEST_DELAY)
+                    return response.content.decode(self.encoding, errors="replace")
+                except Exception:  # noqa: BLE001
+                    pass
         else:
             try:
                 response.encoding = response.apparent_encoding or "utf-8"

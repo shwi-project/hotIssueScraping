@@ -10,27 +10,38 @@ class ClienScraper(BaseScraper):
     source = "클리앙"
     base_url = "https://www.clien.net/service/board/park"
     category = "라이프"
+    default_referer = "https://www.clien.net/"
 
     def parse(self, html: str) -> list[dict]:
         soup = self.soup(html)
         items: list[dict] = []
 
         for row in soup.select("div.list_item, div.list-item"):
-            a = row.select_one("a.list_subject, a.subject_fixed")
+            a = (row.select_one("a.list_subject")
+                 or row.select_one("a.subject_fixed")
+                 or row.select_one("a[href*='/service/post/']"))
             if not a:
                 a = row.find("a", href=True)
             if not a:
                 continue
-            title_tag = a.select_one("span.subject_fixed") or a
+            title_tag = (row.select_one("span.subject_fixed")
+                         or row.select_one("span.list_subject")
+                         or a)
             title = title_tag.get_text(" ", strip=True)
             href = a.get("href") or ""
             if not title or not href:
                 continue
             url = urljoin("https://www.clien.net/", href)
 
-            score_tag = row.select_one("div.list_symph, span.symph_count")
-            views_tag = row.select_one("div.list_hit, span.hit")
-            cmt_tag = row.select_one("a.list_reply, span.rSymph05")
+            score_tag = row.select_one(
+                "div.list_symph, span.symph_count, span.cnt_symph, span.list_count.symph"
+            )
+            views_tag = row.select_one(
+                "div.list_hit, span.hit, span.cnt_view, span.list_count.hit"
+            )
+            cmt_tag = row.select_one(
+                "a.list_reply, span.rSymph05, span.cnt_reply, span.list_count.reply"
+            )
 
             score = self.to_int(score_tag.get_text()) if score_tag else 0
             views = self.to_int(views_tag.get_text()) if views_tag else 0
