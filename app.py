@@ -737,7 +737,7 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                                 break
                         st.rerun()
                     else:
-                        err_msg = analyzer.last_error or "알 수 없는 오류"
+                        err_msg = getattr(analyzer, "last_error", "") or "알 수 없는 오류"
                         st.error(f"AI 분석 실패: {err_msg}")
 
 
