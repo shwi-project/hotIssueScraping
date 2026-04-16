@@ -1,14 +1,11 @@
-"""Anthropic / Google Gemini API 기반 쇼츠 아이디어 분석기.
-
-우선순위: Anthropic API 키가 있으면 Claude 사용, 없으면 Gemini 사용.
-"""
+"""Google Gemini API 기반 쇼츠 아이디어 분석기."""
 from __future__ import annotations
 
 import json
 import logging
 from typing import Any
 
-from config import ANALYZE_BATCH_SIZE, ANTHROPIC_MODEL, GEMINI_MODEL, get_anthropic_key, get_gemini_key
+from config import ANALYZE_BATCH_SIZE, GEMINI_MODEL, get_gemini_key
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +70,9 @@ def _repair_json(text: str) -> str:
     토큰 한도로 응답이 중간에 끊겼을 때 열린 따옴표·괄호를 닫아준다.
     완벽한 복구는 불가능하지만 JSONDecodeError를 줄여준다.
     """
+    import re
+    # 트레일링 콤마 제거
+    text = re.sub(r',(\s*[}\]])', r'\1', text)
     # 열린 문자열(홀수 개 비이스케이프 따옴표) → 닫기
     depth_curly = 0
     depth_square = 0
@@ -126,74 +126,50 @@ def _extract_json(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _get_client() -> tuple[str, Any] | None:
-    """AI 클라이언트 반환. (provider, client) 튜플.
-    Anthropic 키 우선, 없으면 Gemini. 둘 다 없으면 None.
-    """
-    # 1) Anthropic
-    api_key = get_anthropic_key()
-    if api_key:
-        try:
-            import anthropic
-            return ("anthropic", anthropic.Anthropic(api_key=api_key))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Anthropic 클라이언트 초기화 실패: %s", exc)
-
-    # 2) Gemini — SDK 대신 REST API 직접 호출 (SDK 버전 의존성 제거)
+    """Gemini REST API 키 반환. 없으면 None."""
     gemini_key = get_gemini_key()
     if gemini_key:
         return ("gemini", gemini_key)
-
     return None
 
 
 def _call_api(client_info: tuple[str, Any], prompt: str, max_tokens: int) -> str:
-    """provider에 따라 API 호출 → 텍스트 반환."""
-    provider, client = client_info
-    if provider == "anthropic":
-        resp = client.messages.create(
-            model=ANTHROPIC_MODEL,
-            max_tokens=max_tokens,
-            system=ANALYSIS_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return "".join(
-            blk.text for blk in resp.content if getattr(blk, "type", "") == "text"
-        )
-    else:  # gemini — REST API 직접 호출
-        import requests as _rq
-        import time as _time
-        api_key = client  # _get_client에서 키 문자열을 그대로 전달
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{GEMINI_MODEL}:generateContent"
-        )
-        headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
-        # 시스템 프롬프트를 user 메시지 앞에 삽입 (system_instruction 호환성 문제 우회)
-        full_prompt = f"{ANALYSIS_SYSTEM}\n\n{prompt}"
-        body = {
-            "contents": [{"parts": [{"text": full_prompt}]}],
-            "generationConfig": {"maxOutputTokens": max_tokens},
-        }
-        last_err = ""
-        for attempt in range(3):
-            resp = _rq.post(url, headers=headers, json=body, timeout=120)
-            if resp.status_code == 429:
-                last_err = resp.text[:200]
-                _time.sleep((attempt + 1) * 10)
-                continue
-            if not resp.ok:
-                try:
-                    err = resp.json().get("error", {})
-                    msg = err.get("message", resp.text[:300])
-                except Exception:
-                    msg = resp.text[:300]
-                raise AnalyzerError(f"Gemini API {resp.status_code}: {msg}")
-            data = resp.json()
+    """Gemini REST API 호출 → 텍스트 반환."""
+    _provider, client = client_info  # provider는 항상 "gemini"
+    import requests as _rq
+    import time as _time
+    api_key = client  # _get_client에서 키 문자열을 그대로 전달
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent"
+    )
+    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+    # 시스템 프롬프트를 user 메시지 앞에 삽입 (system_instruction 호환성 문제 우회)
+    full_prompt = f"{ANALYSIS_SYSTEM}\n\n{prompt}"
+    body = {
+        "contents": [{"parts": [{"text": full_prompt}]}],
+        "generationConfig": {"maxOutputTokens": max_tokens},
+    }
+    last_err = ""
+    for attempt in range(3):
+        resp = _rq.post(url, headers=headers, json=body, timeout=120)
+        if resp.status_code == 429:
+            last_err = resp.text[:200]
+            _time.sleep((attempt + 1) * 10)
+            continue
+        if not resp.ok:
             try:
-                return data["candidates"][0]["content"]["parts"][0]["text"]
-            except (KeyError, IndexError) as exc:
-                raise AnalyzerError(f"Gemini 응답 파싱 실패: {data}") from exc
-        raise AnalyzerError(f"Gemini 429 한도 초과: {last_err}")
+                err = resp.json().get("error", {})
+                msg = err.get("message", resp.text[:300])
+            except Exception:
+                msg = resp.text[:300]
+            raise AnalyzerError(f"Gemini API {resp.status_code}: {msg}")
+        data = resp.json()
+        try:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError) as exc:
+            raise AnalyzerError(f"Gemini 응답 파싱 실패: {data}") from exc
+    raise AnalyzerError(f"Gemini 429 한도 초과: {last_err}")
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +253,7 @@ def analyze_single(item: dict) -> dict:
 
     client_info = _get_client()
     if client_info is None:
-        last_error = "API 키 없음 — 설정 탭에서 GEMINI_API_KEY 또는 ANTHROPIC_API_KEY를 등록하세요."
+        last_error = "API 키 없음 — 설정 탭에서 GEMINI_API_KEY를 등록하세요."
         logger.warning("analyze_single: %s", last_error)
         return item
 
@@ -309,14 +285,12 @@ def analyze_single(item: dict) -> dict:
 
 
 def is_available() -> bool:
-    """Anthropic 또는 Gemini 키가 하나라도 설정돼 있으면 True."""
-    return bool(get_anthropic_key() or get_gemini_key())
+    """Gemini 키가 설정돼 있으면 True."""
+    return bool(get_gemini_key())
 
 
 def active_provider() -> str:
     """현재 사용 중인 AI 제공자 이름 반환 (표시용)."""
-    if get_anthropic_key():
-        return "Claude (Anthropic)"
     if get_gemini_key():
         return "Gemini (Google)"
     return ""

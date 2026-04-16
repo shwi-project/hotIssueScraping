@@ -744,9 +744,9 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                     else:
                         if not _analysis_err:
                             # last_error도 없고 예외도 없으면 provider 정보 직접 확인
-                            from config import get_anthropic_key, get_gemini_key
-                            if not get_anthropic_key() and not get_gemini_key():
-                                _analysis_err = "API 키 없음 — 설정 탭에서 GEMINI_API_KEY 또는 ANTHROPIC_API_KEY를 등록하세요."
+                            from config import get_gemini_key
+                            if not get_gemini_key():
+                                _analysis_err = "API 키 없음 — 설정 탭에서 GEMINI_API_KEY를 등록하세요."
                             else:
                                 _analysis_err = "API 호출 실패 — 키가 유효한지 확인하세요."
                         st.error(f"AI 분석 실패: {_analysis_err}")
@@ -1066,13 +1066,13 @@ elif _page == "📈 분석":
 # ===== ⚙️ 설정 =====
 elif _page == "⚙️ 설정":
     from config import (
-        get_anthropic_key, get_gemini_key, get_youtube_key,
+        get_gemini_key, get_youtube_key,
         get_reddit_creds, get_naver_creds, get_scrapecreators_key,
     )
 
     st.header("⚙️ 설정")
     st.caption(
-        "AI 분석은 **GEMINI_API_KEY** (Google AI Studio) 또는 **ANTHROPIC_API_KEY** 중 하나만 있으면 됩니다. "
+        "AI 분석은 **GEMINI_API_KEY** (Google AI Studio) 가 필요합니다. "
         "YouTube 수집은 **YOUTUBE_API_KEY** (Google Cloud Console, AI Studio 키와 다른 키) 가 필요합니다. "
         "키는 **Streamlit Cloud Secrets** 또는 **로컬 `.env`** 에 저장하세요."
     )
@@ -1085,7 +1085,6 @@ elif _page == "⚙️ 설정":
             return False
 
     status_items = [
-        ("🧠 Anthropic", _safe_call(get_anthropic_key)),
         ("✨ Gemini", _safe_call(get_gemini_key)),
         ("📺 YouTube API", _safe_call(get_youtube_key)),
         ("👽 Reddit", _safe_call(get_reddit_creds)),
@@ -1109,47 +1108,15 @@ elif _page == "⚙️ 설정":
     st.divider()
 
     # -----------------------------------------------------------------------
-    # Anthropic
+    # Gemini
     # -----------------------------------------------------------------------
-    with st.expander("🧠 ANTHROPIC_API_KEY — Claude AI 분석 (선택)", expanded=False):
+    with st.expander("✨ GEMINI_API_KEY — Google Gemini AI 분석", expanded=False):
         st.markdown(
             """
 **사용 범위**
 - 🤖 쇼츠 아이디어 AI 분석 (요약·해시태그·활용도 점수)
-- 🧵 Threads 인기 포스트 수집
-- 🎵 TikTok 트렌드 수집
-
-> ℹ️ **Gemini API 키가 있으면 Anthropic 없이도 AI 분석이 가능합니다.**
-> Anthropic 키가 있으면 Anthropic을 우선 사용합니다.
-
-**키 형식**: `sk-ant-api03-XXXXXXXXX…` (약 108자)
-
-### 📝 발급 단계 (3분)
-1. <https://console.anthropic.com> 접속 → 계정 생성/로그인
-2. 왼쪽 메뉴 **API Keys** → **Create Key**
-3. 표시된 `sk-ant-api03-…` 키를 **즉시 복사** (창 닫으면 다시 못 봐요)
-
-### ☁️ Streamlit Cloud에 등록
-```toml
-ANTHROPIC_API_KEY = "sk-ant-api03-XXXXX..."
-```
-
-### 💻 로컬 `.env`
-```
-ANTHROPIC_API_KEY=sk-ant-api03-XXXXX...
-```
-            """
-        )
-
-    # -----------------------------------------------------------------------
-    # Gemini
-    # -----------------------------------------------------------------------
-    with st.expander("✨ GEMINI_API_KEY — Google Gemini AI 분석 (Anthropic 대체)", expanded=False):
-        st.markdown(
-            """
-**사용 범위**
-- 🤖 쇼츠 아이디어 AI 분석 (Anthropic Claude 대체)
-- Anthropic API 키가 없을 때 자동으로 Gemini를 사용
+- 🧵 Threads AI 추정 트렌드 (ScrapeCreators 키 없을 때)
+- 🎵 TikTok AI 추정 트렌드 (ScrapeCreators 키 없을 때)
 
 > ⚠️ **Google AI Studio 키 ≠ YouTube API 키**
 > Google AI Studio (`aistudio.google.com`) 에서 발급한 키가 바로 이 Gemini 키입니다.
@@ -1189,7 +1156,7 @@ GEMINI_API_KEY=AIzaSy...
 - 영상별 조회수·좋아요·댓글수 수집
 
 > ⚠️ **이 키는 YouTube 수집 전용입니다. AI 분석에는 사용되지 않습니다.**
-> AI 분석에는 `GEMINI_API_KEY` 또는 `ANTHROPIC_API_KEY`를 사용하세요.
+> AI 분석에는 `GEMINI_API_KEY`를 사용하세요.
 
 **키 형식**: `AIzaSy...` (39자) — Google Cloud Console에서 발급
 (AI Studio 키와 형식은 같지만 **다른 키**입니다)
@@ -1309,7 +1276,7 @@ NAVER_CLIENT_SECRET=XXXXXXXXXX
 - 🧵 Threads 실제 포스트 / 좋아요 수 / 작성자
 - 🎵 TikTok 실제 영상 / 조회수 / 해시태그
 
-> ⚠️ **이 키가 없으면** Threads/TikTok은 Anthropic 기반 AI 추정으로 동작 (정확도 낮음)
+> ⚠️ **이 키가 없으면** Threads/TikTok은 Gemini 기반 AI 추정으로 동작 (정확도 낮음)
 
 **키 형식**: `sk_…`
 

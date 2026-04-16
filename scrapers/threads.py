@@ -2,15 +2,14 @@
 
 우선순위:
 1) SCRAPECREATORS_API_KEY → 실제 Threads 포스트 수집 (권장)
-2) Anthropic Claude → AI 추정 트렌드
-3) Gemini → AI 추정 트렌드 (fallback)
+2) Gemini → AI 추정 트렌드 (fallback)
 """
 from __future__ import annotations
 
 import json
 import logging
 
-from config import ANTHROPIC_MODEL, GEMINI_MODEL, get_anthropic_key, get_gemini_key, get_scrapecreators_key
+from config import GEMINI_MODEL, get_gemini_key, get_scrapecreators_key
 
 from .base import BaseScraper
 
@@ -40,20 +39,14 @@ class ThreadsScraper(BaseScraper):
             if items:
                 return items
 
-        # 2) Anthropic
-        if get_anthropic_key():
-            items = self._fetch_via_anthropic(limit)
-            if items:
-                return items
-
-        # 3) Gemini
+        # 2) Gemini
         if get_gemini_key():
             items = self._fetch_via_gemini(limit)
             if items:
                 return items
 
         if not self.last_error:
-            self.last_error = "SCRAPECREATORS_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY 중 하나 필요"
+            self.last_error = "SCRAPECREATORS_API_KEY 또는 GEMINI_API_KEY 필요"
         return []
 
     # ------------------------------------------------------------------
@@ -184,27 +177,6 @@ class ThreadsScraper(BaseScraper):
                 "engagement": row.get("engagement", "AI 추정"),
             }))
         return items
-
-    def _fetch_via_anthropic(self, limit: int) -> list[dict]:
-        try:
-            import anthropic
-        except ImportError:
-            self.last_error = "anthropic 패키지 미설치"
-            return []
-        try:
-            client = anthropic.Anthropic(api_key=get_anthropic_key())
-            resp = client.messages.create(
-                model=ANTHROPIC_MODEL,
-                max_tokens=2048,
-                messages=[{"role": "user", "content": self._prompt(limit)}],
-            )
-            text = "".join(
-                blk.text for blk in resp.content if getattr(blk, "type", "") == "text"
-            )
-            return self._parse_response(text, limit)
-        except Exception as exc:  # noqa: BLE001
-            self.last_error = f"Anthropic 호출 실패: {type(exc).__name__}: {str(exc)[:100]}"
-            return []
 
     def _fetch_via_gemini(self, limit: int) -> list[dict]:
         try:

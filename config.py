@@ -15,9 +15,6 @@ load_dotenv(BASE_DIR / ".env")
 # ---------------------------------------------------------------------------
 # API 키
 # ---------------------------------------------------------------------------
-ANTHROPIC_API_KEY: str | None = os.getenv("ANTHROPIC_API_KEY")
-
-
 def _get_key(*names: str) -> str | None:
     """여러 이름 중 하나라도 찾으면 반환. os.environ → st.secrets 우선순위.
 
@@ -50,11 +47,6 @@ def _get_key(*names: str) -> str | None:
         # streamlit 미설치 / secrets.toml 없음 / 기타 어떤 예외든 OK
         pass
     return None
-
-
-def get_anthropic_key() -> str | None:
-    """Anthropic Claude AI 분석용 키."""
-    return _get_key("ANTHROPIC_API_KEY") or ANTHROPIC_API_KEY
 
 
 def get_gemini_key() -> str | None:
@@ -100,7 +92,6 @@ REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "20"))
 # ---------------------------------------------------------------------------
 # AI 분석
 # ---------------------------------------------------------------------------
-ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 ANALYZE_BATCH_SIZE: int = int(os.getenv("ANALYZE_BATCH_SIZE", "20"))
 MAX_CACHE_SIZE: int = int(os.getenv("MAX_CACHE_SIZE", "500"))  # analysis_cache 최대 항목 수

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import logging
 
-from config import ANTHROPIC_MODEL, get_anthropic_key
+from config import GEMINI_MODEL, get_gemini_key
 
 from .base import BaseScraper
 
@@ -21,24 +21,17 @@ class TiktokTrendsScraper(BaseScraper):
 
     def get_trending(self, limit: int = 10) -> list[dict]:
         self.last_error = ""
-        api_key = get_anthropic_key()
-        if not api_key:
-            self.last_error = "ANTHROPIC_API_KEY 없음 (TikTok은 AI 기반 수집만 지원)"
+        if not get_gemini_key():
+            self.last_error = "GEMINI_API_KEY 없음 (TikTok은 AI 기반 수집만 지원)"
             return []
-        items = self._fetch_via_claude(limit, api_key)
+        items = self._fetch_via_gemini(limit)
         if not items and not self.last_error:
-            self.last_error = "Claude 응답 파싱 실패"
+            self.last_error = "Gemini 응답 파싱 실패"
         return items
 
-    def _fetch_via_claude(self, limit: int, api_key: str) -> list[dict]:
+    def _fetch_via_gemini(self, limit: int) -> list[dict]:
         try:
-            import anthropic
-        except ImportError:
-            self.last_error = "anthropic 패키지 미설치"
-            return []
-
-        try:
-            client = anthropic.Anthropic(api_key=api_key)
+            import requests as _rq
             prompt = (
                 f"지금 한국 TikTok에서 유행하는 해시태그/챌린지/밈 {limit}개를 찾아줘. "
                 "JSON 배열로만 답하고 각 항목은 "
@@ -47,18 +40,27 @@ class TiktokTrendsScraper(BaseScraper):
                 '"engagement": "대략적 인기"} '
                 "필드를 포함해. 다른 설명 없이 JSON만."
             )
-            resp = client.messages.create(
-                model=ANTHROPIC_MODEL,
-                max_tokens=2048,
-                messages=[{"role": "user", "content": prompt}],
+            resp = _rq.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+                headers={"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()},
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"maxOutputTokens": 2048},
+                },
+                timeout=60,
             )
-            text = "".join(
-                blk.text for blk in resp.content if getattr(blk, "type", "") == "text"
-            ).strip()
-            if text.startswith("```"):
-                text = text.strip("`")
-                if text.lower().startswith("json"):
-                    text = text[4:]
+            if not resp.ok:
+                self.last_error = f"Gemini API {resp.status_code}"
+                return []
+            text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            import re
+            fence = re.search(r"```(?:json)?\s*([\s\S]+?)```", text)
+            if fence:
+                text = fence.group(1).strip()
+            else:
+                m = re.search(r"(\[[\s\S]*\])", text)
+                if m:
+                    text = m.group(1).strip()
             data = json.loads(text)
             items: list[dict] = []
             for row in data[:limit]:
@@ -70,6 +72,6 @@ class TiktokTrendsScraper(BaseScraper):
                 }))
             return items
         except Exception as exc:  # noqa: BLE001
-            self.last_error = f"Claude 호출 실패: {type(exc).__name__}: {str(exc)[:100]}"
+            self.last_error = f"Gemini 호출 실패: {type(exc).__name__}: {str(exc)[:100]}"
             logger.info("TikTok AI fallback 실패: %s", exc)
             return []
