@@ -122,30 +122,39 @@ def _call_api(client_info: tuple[str, Any], prompt: str, max_tokens: int) -> str
         )
     else:  # gemini — REST API 직접 호출
         import requests as _rq
+        import time as _time
         api_key = client  # _get_client에서 키 문자열을 그대로 전달
-        # v1beta 엔드포인트 사용 (최신 모델 지원)
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{GEMINI_MODEL}:generateContent?key={api_key}"
+            f"{GEMINI_MODEL}:generateContent"
         )
+        headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+        # 시스템 프롬프트를 user 메시지 앞에 삽입 (system_instruction 호환성 문제 우회)
+        full_prompt = f"{ANALYSIS_SYSTEM}\n\n{prompt}"
         body = {
-            "system_instruction": {"parts": [{"text": ANALYSIS_SYSTEM}]},
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "contents": [{"parts": [{"text": full_prompt}]}],
             "generationConfig": {"maxOutputTokens": max_tokens},
         }
-        resp = _rq.post(url, json=body, timeout=60)
-        if resp.status_code != 200:
+        last_err = ""
+        for attempt in range(3):
+            resp = _rq.post(url, headers=headers, json=body, timeout=120)
+            if resp.status_code == 429:
+                last_err = resp.text[:200]
+                _time.sleep((attempt + 1) * 10)
+                continue
+            if not resp.ok:
+                try:
+                    err = resp.json().get("error", {})
+                    msg = err.get("message", resp.text[:300])
+                except Exception:
+                    msg = resp.text[:300]
+                raise AnalyzerError(f"Gemini API {resp.status_code}: {msg}")
+            data = resp.json()
             try:
-                err = resp.json().get("error", {})
-                msg = err.get("message", resp.text[:200])
-            except Exception:
-                msg = resp.text[:200]
-            raise AnalyzerError(f"Gemini API {resp.status_code}: {msg}")
-        data = resp.json()
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError) as exc:
-            raise AnalyzerError(f"Gemini 응답 파싱 실패: {data}") from exc
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+            except (KeyError, IndexError) as exc:
+                raise AnalyzerError(f"Gemini 응답 파싱 실패: {data}") from exc
+        raise AnalyzerError(f"Gemini 429 한도 초과: {last_err}")
 
 
 # ---------------------------------------------------------------------------
