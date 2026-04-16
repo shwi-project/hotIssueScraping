@@ -66,25 +66,25 @@ st.markdown(
         background: #FFFFFF;
         box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     }
-    /* AI 분석 버튼 — 작은 pill 스타일 */
+    /* AI 분석 버튼 — 아주 작은 pill 스타일 */
     div[class*="st-key-ai_btn_"] button {
         background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
         color: white !important;
         border: none !important;
-        border-radius: 16px !important;
-        padding: 2px 10px !important;
-        font-size: 0.68rem !important;
+        border-radius: 12px !important;
+        padding: 1px 8px !important;
+        font-size: 0.6rem !important;
         font-weight: 600 !important;
-        letter-spacing: 0.02em !important;
+        letter-spacing: 0.01em !important;
         height: auto !important;
-        min-height: 22px !important;
-        line-height: 1.4 !important;
-        box-shadow: 0 1px 5px rgba(99,102,241,0.30) !important;
+        min-height: 18px !important;
+        line-height: 1.3 !important;
+        box-shadow: 0 1px 4px rgba(99,102,241,0.25) !important;
         transition: opacity 0.15s !important;
         width: auto !important;
     }
     div[class*="st-key-ai_btn_"] button:hover {
-        opacity: 0.85 !important;
+        opacity: 0.82 !important;
     }
     .item-title {
         font-weight: 700;
