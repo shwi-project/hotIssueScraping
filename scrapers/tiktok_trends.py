@@ -170,13 +170,11 @@ class TiktokTrendsScraper(BaseScraper):
         try:
             import requests as _rq
             import time as _time
+            # 프롬프트 — 예시를 직접 보여줘서 형식 오해 방지
             prompt = (
-                f"지금 한국 TikTok에서 유행하는 해시태그/챌린지/밈 {limit}개를 찾아줘. "
-                "JSON 배열로만 답하고 각 항목은 "
-                '{"title": "해시태그 또는 트렌드명", "summary": "무엇인지 1-2줄", '
-                '"url": "https://www.tiktok.com/tag/..." (없으면 빈 문자열), '
-                '"engagement": "대략적 인기"} '
-                "필드를 포함해. 다른 설명 없이 JSON만."
+                f'한국 TikTok 인기 트렌드 {limit}개를 아래 JSON 배열 형식으로만 답해. '
+                '설명 없이 JSON만:\n'
+                '[{"title":"#트렌드명","summary":"1-2줄 설명","url":"","engagement":"인기도"},...]'
             )
             headers = {"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()}
             body = {
@@ -184,10 +182,10 @@ class TiktokTrendsScraper(BaseScraper):
                 "generationConfig": {"maxOutputTokens": 2048},
             }
             models = [GEMINI_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
-            resp = None
-            text = ""
+            raw_text = ""
             for model in models:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+                resp = None
                 for attempt in range(2):
                     resp = _rq.post(url, headers=headers, json=body, timeout=60)
                     if resp.status_code in (429, 503, 529):
@@ -195,20 +193,39 @@ class TiktokTrendsScraper(BaseScraper):
                         continue
                     break
                 if resp is None or not resp.ok:
-                    self.last_error = f"Gemini {model} {resp.status_code if resp else '?'}"
+                    self.last_error = f"Gemini {model} {getattr(resp, 'status_code', '?')}"
                     continue
                 parts = resp.json()["candidates"][0]["content"].get("parts", [])
-                text = "\n".join(p.get("text", "") for p in parts if p.get("text") and not p.get("thought"))
-                break
-            if not text:
+                raw_text = "\n".join(
+                    p.get("text", "") for p in parts
+                    if p.get("text") and not p.get("thought")
+                )
+                if raw_text:
+                    break
+
+            if not raw_text:
                 return []
-            extracted = self._extract_json(text)
-            try:
-                data = json.loads(extracted)
-            except json.JSONDecodeError:
-                data = json.loads(self._repair_json(extracted))
+
+            logger.info("TikTok Gemini raw: %s", raw_text[:200])
+
+            extracted = self._extract_json(raw_text)
+            parsed = None
+            for candidate in (extracted, self._repair_json(extracted)):
+                try:
+                    parsed = json.loads(candidate)
+                    break
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+            if not isinstance(parsed, list):
+                logger.warning("TikTok Gemini JSON 파싱 실패, raw: %s", raw_text[:300])
+                self.last_error = "Gemini 응답 파싱 실패 (JSON 아님)"
+                return []
+
             items: list[dict] = []
-            for row in data[:limit]:
+            for row in parsed[:limit]:
+                if not isinstance(row, dict):
+                    continue
                 items.append(self._normalize({
                     "title": row.get("title", ""),
                     "summary": row.get("summary", ""),
