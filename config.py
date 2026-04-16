@@ -95,7 +95,7 @@ def get_scrapecreators_key() -> str | None:
 REQUEST_DELAY: float = float(os.getenv("REQUEST_DELAY", "0.5"))
 CACHE_TTL: int = int(os.getenv("CACHE_TTL", "300"))  # 5분
 MAX_ITEMS_PER_SITE: int = int(os.getenv("MAX_ITEMS_PER_SITE", "15"))
-REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "10"))
+REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "20"))
 
 # ---------------------------------------------------------------------------
 # AI 분석

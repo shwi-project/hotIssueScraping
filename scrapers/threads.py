@@ -66,6 +66,9 @@ class ThreadsScraper(BaseScraper):
 
     @staticmethod
     def _repair_json(text: str) -> str:
+        import re
+        # trailing comma 제거 (Gemini 자주 생성)
+        text = re.sub(r',(\s*[}\]])', r'\1', text)
         depth_c = depth_s = 0
         in_str = esc = False
         for ch in text:
