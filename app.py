@@ -525,14 +525,15 @@ with pop_col1:
         )
 
         st.divider()
+        _ai_provider = analyzer.active_provider()
         ai_on = st.toggle(
-            "🤖 AI 분석 ON",
+            f"🤖 AI 분석 ON{f' ({_ai_provider})' if _ai_provider else ''}",
             value=analyzer.is_available(),
-            help="ANTHROPIC_API_KEY 필요 — 설정 탭에서 입력",
+            help="ANTHROPIC_API_KEY 또는 GEMINI_API_KEY 필요 — 설정 탭에서 입력",
             key="ai_on_toggle",
         )
         if ai_on and not analyzer.is_available():
-            st.warning("API 키가 없어요. 설정 탭에서 입력하세요.")
+            st.warning("API 키가 없어요. 설정 탭에서 Anthropic 또는 Gemini 키를 입력하세요.")
 
 with pop_col2:
     run_btn = st.button(
@@ -1047,8 +1048,8 @@ elif _page == "📈 분석":
 # ===== ⚙️ 설정 =====
 elif _page == "⚙️ 설정":
     from config import (
-        get_anthropic_key, get_google_key, get_reddit_creds,
-        get_naver_creds, get_scrapecreators_key,
+        get_anthropic_key, get_gemini_key, get_youtube_key,
+        get_reddit_creds, get_naver_creds, get_scrapecreators_key,
     )
 
     st.header("⚙️ 설정")
@@ -1067,10 +1068,11 @@ elif _page == "⚙️ 설정":
 
     status_items = [
         ("🧠 Anthropic", _safe_call(get_anthropic_key)),
-        ("📺 Google", _safe_call(get_google_key)),
+        ("✨ Gemini", _safe_call(get_gemini_key)),
+        ("📺 YouTube API", _safe_call(get_youtube_key)),
         ("👽 Reddit", _safe_call(get_reddit_creds)),
         ("🟢 Naver", _safe_call(get_naver_creds)),
-        ("✨ ScrapeCreators", _safe_call(get_scrapecreators_key)),
+        ("🎬 ScrapeCreators", _safe_call(get_scrapecreators_key)),
     ]
 
     st.markdown("### 🔑 현재 키 상태")
@@ -1091,7 +1093,7 @@ elif _page == "⚙️ 설정":
     # -----------------------------------------------------------------------
     # Anthropic
     # -----------------------------------------------------------------------
-    with st.expander("🧠 ANTHROPIC_API_KEY — AI 분석 / Threads / TikTok", expanded=True):
+    with st.expander("🧠 ANTHROPIC_API_KEY — Claude AI 분석 (선택)", expanded=False):
         st.markdown(
             """
 **사용 범위**
@@ -1099,22 +1101,20 @@ elif _page == "⚙️ 설정":
 - 🧵 Threads 인기 포스트 수집
 - 🎵 TikTok 트렌드 수집
 
+> ℹ️ **Gemini API 키가 있으면 Anthropic 없이도 AI 분석이 가능합니다.**
+> Anthropic 키가 있으면 Anthropic을 우선 사용합니다.
+
 **키 형식**: `sk-ant-api03-XXXXXXXXX…` (약 108자)
 
 ### 📝 발급 단계 (3분)
 1. <https://console.anthropic.com> 접속 → 계정 생성/로그인
-2. 왼쪽 메뉴 **API Keys** → 오른쪽 상단 **Create Key** 클릭
-3. 키 이름 지정 (예: `shorts-collector`) → **Create Key**
-4. 표시된 `sk-ant-api03-…` 키를 **즉시 복사** (창 닫으면 다시 못 봐요)
-
-💡 가입 시 **무료 크레딧 $5** 제공 (이 앱 기준 수천 회 분석 가능)
+2. 왼쪽 메뉴 **API Keys** → **Create Key**
+3. 표시된 `sk-ant-api03-…` 키를 **즉시 복사** (창 닫으면 다시 못 봐요)
 
 ### ☁️ Streamlit Cloud에 등록
-앱 매니저 → **⋮ → Settings → Secrets** 에 붙여넣기:
 ```toml
 ANTHROPIC_API_KEY = "sk-ant-api03-XXXXX..."
 ```
-저장 → 앱 자동 재시작 → 즉시 반영.
 
 ### 💻 로컬 `.env`
 ```
@@ -1124,42 +1124,79 @@ ANTHROPIC_API_KEY=sk-ant-api03-XXXXX...
         )
 
     # -----------------------------------------------------------------------
-    # Google / YouTube
+    # Gemini
     # -----------------------------------------------------------------------
-    with st.expander("📺 GOOGLE_API_KEY — YouTube Data API v3", expanded=True):
+    with st.expander("✨ GEMINI_API_KEY — Google Gemini AI 분석 (Anthropic 대체)", expanded=True):
         st.markdown(
             """
 **사용 범위**
-- 📺 YouTube 한국 인기 급상승 영상 (공식 API, 가장 정확)
-- 영상별 조회수·좋아요·댓글수까지 정상 수집
+- 🤖 쇼츠 아이디어 AI 분석 (Anthropic Claude 대체)
+- Anthropic API 키가 없을 때 자동으로 Gemini를 사용
 
-**키 형식**: `AIzaSy...` (39자 알파벳+숫자)
+> ⚠️ **Google AI Studio 키 ≠ YouTube API 키**
+> Google AI Studio (`aistudio.google.com`) 에서 발급한 키가 바로 이 Gemini 키입니다.
+> YouTube 수집에는 별도의 `YOUTUBE_API_KEY`가 필요합니다.
 
-### 📝 발급 단계 (5분)
-1. <https://console.cloud.google.com> 접속 (Google 계정 필요)
-2. 상단 드롭다운 → **New Project** → 프로젝트 생성 (예: `shorts-collector`)
-3. 왼쪽 메뉴 → **APIs & Services → Library**
-4. 검색창에 `YouTube Data API v3` → 클릭 → **Enable**
-5. 왼쪽 메뉴 → **APIs & Services → Credentials**
-6. 상단 **+ CREATE CREDENTIALS → API key** 클릭
-7. 표시된 키 복사 (`AIzaSy…`)
-8. (권장) 만든 키 **Edit** → **Application restrictions: None**,
-   **API restrictions: Restrict key → YouTube Data API v3 만 체크** → Save
+**키 형식**: `AIzaSy...` (39자) — Google AI Studio에서 발급
 
-💡 YouTube Data API는 **무료 할당량 하루 10,000 유닛** (인기 영상 조회 1 유닛당 1~5회)
-→ 이 앱으로는 일일 수천 번 호출 가능
+### 📝 발급 단계 (1분)
+1. <https://aistudio.google.com> 접속 → Google 로그인
+2. 상단 **Get API key** 또는 왼쪽 메뉴 **API keys** 클릭
+3. **Create API key** → 키 복사 (`AIzaSy…`)
+
+💡 **무료 할당량**: Gemini 2.0 Flash 기준 분당 15회 / 일 1,500회 (이 앱에 충분)
 
 ### ☁️ Streamlit Cloud에 등록
 ```toml
-GOOGLE_API_KEY = "AIzaSy..."
+GEMINI_API_KEY = "AIzaSy..."
 ```
 
 ### 💻 로컬 `.env`
 ```
-GOOGLE_API_KEY=AIzaSy...
+GEMINI_API_KEY=AIzaSy...
 ```
 
-> 💡 `YOUTUBE_API_KEY` 라는 이름으로 저장해도 자동 인식됩니다.
+> 💡 `GOOGLE_API_KEY` 라는 이름으로 저장해도 자동 인식됩니다.
+            """
+        )
+
+    # -----------------------------------------------------------------------
+    # YouTube Data API
+    # -----------------------------------------------------------------------
+    with st.expander("📺 YOUTUBE_API_KEY — YouTube Data API v3 (YouTube 수집 전용)", expanded=True):
+        st.markdown(
+            """
+**사용 범위**
+- 📺 YouTube 한국 인기 급상승 영상 수집 (공식 API, 가장 정확)
+- 영상별 조회수·좋아요·댓글수 수집
+
+> ⚠️ **이 키는 YouTube 수집 전용입니다. AI 분석에는 사용되지 않습니다.**
+> AI 분석에는 `GEMINI_API_KEY` 또는 `ANTHROPIC_API_KEY`를 사용하세요.
+
+**키 형식**: `AIzaSy...` (39자) — Google Cloud Console에서 발급
+(AI Studio 키와 형식은 같지만 **다른 키**입니다)
+
+### 📝 발급 단계 (5분)
+1. <https://console.cloud.google.com> 접속 (Google 계정 필요)
+2. 상단 드롭다운 → **New Project** → 프로젝트 생성
+3. 왼쪽 메뉴 → **APIs & Services → Library**
+4. 검색창에 `YouTube Data API v3` → 클릭 → **Enable**
+5. 왼쪽 메뉴 → **APIs & Services → Credentials**
+6. **+ CREATE CREDENTIALS → API key** 클릭 → 키 복사
+7. (권장) 키 **Edit** → **API restrictions: YouTube Data API v3** 만 체크 → Save
+
+💡 YouTube Data API는 **무료 할당량 하루 10,000 유닛**
+→ 이 앱 기준 수백~수천 번 호출 가능
+
+### ☁️ Streamlit Cloud에 등록
+```toml
+YOUTUBE_API_KEY = "AIzaSy..."
+```
+
+### 💻 로컬 `.env`
+```
+YOUTUBE_API_KEY=AIzaSy...
+```
             """
         )
 

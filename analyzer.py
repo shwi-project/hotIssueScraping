@@ -1,11 +1,14 @@
-"""Anthropic API 기반 쇼츠 아이디어 분석기."""
+"""Anthropic / Google Gemini API 기반 쇼츠 아이디어 분석기.
+
+우선순위: Anthropic API 키가 있으면 Claude 사용, 없으면 Gemini 사용.
+"""
 from __future__ import annotations
 
 import json
 import logging
 from typing import Any
 
-from config import ANALYZE_BATCH_SIZE, ANTHROPIC_MODEL, get_anthropic_key
+from config import ANALYZE_BATCH_SIZE, ANTHROPIC_MODEL, GEMINI_MODEL, get_anthropic_key, get_gemini_key
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +67,6 @@ def _strip_code_fence(text: str) -> str:
     text = text.strip()
     if text.startswith("```"):
         text = text.strip("`")
-        # 'json\n...' 형식이면 앞 4자 제거
         for prefix in ("json\n", "JSON\n", "json ", "JSON "):
             if text.startswith(prefix):
                 text = text[len(prefix):]
@@ -72,18 +74,64 @@ def _strip_code_fence(text: str) -> str:
     return text.strip()
 
 
-def _get_client():
-    """Anthropic 클라이언트 생성 (키 없으면 None). 호출 시점에 키 조회."""
-    api_key = get_anthropic_key()
-    if not api_key:
-        return None
-    try:
-        import anthropic
-        return anthropic.Anthropic(api_key=api_key)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Anthropic 클라이언트 초기화 실패: %s", exc)
-        return None
+# ---------------------------------------------------------------------------
+# 클라이언트 팩토리
+# ---------------------------------------------------------------------------
 
+def _get_client() -> tuple[str, Any] | None:
+    """AI 클라이언트 반환. (provider, client) 튜플.
+    Anthropic 키 우선, 없으면 Gemini. 둘 다 없으면 None.
+    """
+    # 1) Anthropic
+    api_key = get_anthropic_key()
+    if api_key:
+        try:
+            import anthropic
+            return ("anthropic", anthropic.Anthropic(api_key=api_key))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Anthropic 클라이언트 초기화 실패: %s", exc)
+
+    # 2) Gemini
+    gemini_key = get_gemini_key()
+    if gemini_key:
+        try:
+            import google.generativeai as genai  # type: ignore
+            genai.configure(api_key=gemini_key)
+            model = genai.GenerativeModel(
+                model_name=GEMINI_MODEL,
+                system_instruction=ANALYSIS_SYSTEM,
+            )
+            return ("gemini", model)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Gemini 클라이언트 초기화 실패: %s", exc)
+
+    return None
+
+
+def _call_api(client_info: tuple[str, Any], prompt: str, max_tokens: int) -> str:
+    """provider에 따라 API 호출 → 텍스트 반환."""
+    provider, client = client_info
+    if provider == "anthropic":
+        resp = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=max_tokens,
+            system=ANALYSIS_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return "".join(
+            blk.text for blk in resp.content if getattr(blk, "type", "") == "text"
+        )
+    else:  # gemini
+        resp = client.generate_content(
+            prompt,
+            generation_config={"max_output_tokens": max_tokens},
+        )
+        return resp.text
+
+
+# ---------------------------------------------------------------------------
+# 공개 API
+# ---------------------------------------------------------------------------
 
 def analyze_batch(items: list[dict]) -> list[dict]:
     """최대 ANALYZE_BATCH_SIZE개 항목을 한 번에 분석.
@@ -93,20 +141,18 @@ def analyze_batch(items: list[dict]) -> list[dict]:
     if not items:
         return []
 
-    client = _get_client()
-    if client is None:
+    client_info = _get_client()
+    if client_info is None:
         return items
 
     results: list[dict] = []
-    # 배치로 쪼개기
     for i in range(0, len(items), ANALYZE_BATCH_SIZE):
         chunk = items[i:i + ANALYZE_BATCH_SIZE]
-        results.extend(_analyze_chunk(client, chunk))
+        results.extend(_analyze_chunk(client_info, chunk))
     return results
 
 
-def _analyze_chunk(client: Any, chunk: list[dict]) -> list[dict]:
-    # 프롬프트 토큰 절감: 최소 필드만 전달
+def _analyze_chunk(client_info: tuple[str, Any], chunk: list[dict]) -> list[dict]:
     compact = [
         {
             "index": idx,
@@ -122,15 +168,7 @@ def _analyze_chunk(client: Any, chunk: list[dict]) -> list[dict]:
     )
 
     try:
-        resp = client.messages.create(
-            model=ANTHROPIC_MODEL,
-            max_tokens=4096,
-            system=ANALYSIS_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = "".join(
-            blk.text for blk in resp.content if getattr(blk, "type", "") == "text"
-        )
+        text = _call_api(client_info, prompt, max_tokens=4096)
         parsed = json.loads(_strip_code_fence(text))
         if not isinstance(parsed, list):
             raise AnalyzerError("배열이 아님")
@@ -138,7 +176,6 @@ def _analyze_chunk(client: Any, chunk: list[dict]) -> list[dict]:
         logger.warning("배치 분석 실패, 원본 유지: %s", exc)
         return chunk
 
-    # index로 매핑
     by_index = {}
     for row in parsed:
         if isinstance(row, dict) and "index" in row:
@@ -161,8 +198,8 @@ def _analyze_chunk(client: Any, chunk: list[dict]) -> list[dict]:
 
 def analyze_single(item: dict) -> dict:
     """항목 하나만 분석. 실패 시 원본 그대로."""
-    client = _get_client()
-    if client is None:
+    client_info = _get_client()
+    if client_info is None:
         return item
 
     prompt = SINGLE_PROMPT_TEMPLATE.format(
@@ -173,15 +210,7 @@ def analyze_single(item: dict) -> dict:
         summary=item.get("summary", ""),
     )
     try:
-        resp = client.messages.create(
-            model=ANTHROPIC_MODEL,
-            max_tokens=1024,
-            system=ANALYSIS_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = "".join(
-            blk.text for blk in resp.content if getattr(blk, "type", "") == "text"
-        )
+        text = _call_api(client_info, prompt, max_tokens=1024)
         data = json.loads(_strip_code_fence(text))
         return {**item, "analysis": {
             "summary": data.get("summary", ""),
@@ -196,5 +225,14 @@ def analyze_single(item: dict) -> dict:
 
 
 def is_available() -> bool:
-    """Anthropic 키가 설정돼 있는지 확인 (호출 시점에 동적으로)."""
-    return bool(get_anthropic_key())
+    """Anthropic 또는 Gemini 키가 하나라도 설정돼 있으면 True."""
+    return bool(get_anthropic_key() or get_gemini_key())
+
+
+def active_provider() -> str:
+    """현재 사용 중인 AI 제공자 이름 반환 (표시용)."""
+    if get_anthropic_key():
+        return "Claude (Anthropic)"
+    if get_gemini_key():
+        return "Gemini (Google)"
+    return ""

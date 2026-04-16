@@ -53,13 +53,18 @@ def _get_key(*names: str) -> str | None:
 
 
 def get_anthropic_key() -> str | None:
-    """AI 분석, Threads/TikTok 수집에 필수."""
+    """Anthropic Claude AI 분석용 키."""
     return _get_key("ANTHROPIC_API_KEY") or ANTHROPIC_API_KEY
 
 
-def get_google_key() -> str | None:
-    """YouTube Data API v3 등 구글 API용 키 (GOOGLE_API_KEY 또는 YOUTUBE_API_KEY)."""
-    return _get_key("GOOGLE_API_KEY", "YOUTUBE_API_KEY")
+def get_gemini_key() -> str | None:
+    """Google Gemini AI 분석용 키 (Anthropic 대체 가능)."""
+    return _get_key("GEMINI_API_KEY", "GOOGLE_API_KEY")
+
+
+def get_youtube_key() -> str | None:
+    """YouTube Data API v3 전용 키."""
+    return _get_key("YOUTUBE_API_KEY")
 
 
 def get_reddit_creds() -> tuple[str, str] | None:
@@ -96,6 +101,7 @@ REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "10"))
 # AI 분석
 # ---------------------------------------------------------------------------
 ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 ANALYZE_BATCH_SIZE: int = int(os.getenv("ANALYZE_BATCH_SIZE", "20"))
 MAX_CACHE_SIZE: int = int(os.getenv("MAX_CACHE_SIZE", "500"))  # analysis_cache 최대 항목 수
 

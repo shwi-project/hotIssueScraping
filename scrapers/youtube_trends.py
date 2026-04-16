@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import re
 
-from config import get_google_key
+from config import get_youtube_key
 
 from .base import BaseScraper
 
@@ -59,16 +59,16 @@ class YoutubeTrendsScraper(BaseScraper):
     def get_trending(self, limit: int = 10) -> list[dict]:
         self.last_error = ""
 
-        # 1) Google API (권장)
-        google_key = get_google_key()
-        if google_key:
+        # 1) YouTube Data API (권장)
+        youtube_key = get_youtube_key()
+        if youtube_key:
             try:
-                items = self._fetch_via_api(google_key, limit)
+                items = self._fetch_via_api(youtube_key, limit)
                 if items:
                     return items
                 self.last_error = "YouTube API 응답 없음"
             except Exception as exc:  # noqa: BLE001
-                self.last_error = f"YouTube Data API 실패: {type(exc).__name__}: {str(exc)[:100]}"
+                self.last_error = f"YouTube Data API 실패: {type(exc).__name__}: {str(exc)[:200]}"
                 logger.warning(self.last_error)
 
         # 2) HTML fallback
