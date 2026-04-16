@@ -821,13 +821,12 @@ class BaseScraper(ABC):
     ) -> str | None:
         """Gemini REST API 호출 — 모델 자동 폴백 + 예외 안전.
 
-        json_mode=True 이면 responseMimeType=application/json 으로 강제해
-        JSONDecodeError 없이 항상 유효한 JSON 반환.
         성공 시 응답 텍스트(thought 제외) 반환, 실패 시 None + self.last_error 설정.
+        json_mode=True 는 호환성을 위해 유지 (현재는 동작 변경 없음).
         """
         import requests as _rq
         import time as _time
-        from config import GEMINI_MODEL, get_gemini_key
+        from config import GEMINI_MODEL as _GM, get_gemini_key
 
         key = get_gemini_key()
         if not key:
@@ -835,16 +834,10 @@ class BaseScraper(ABC):
             return None
 
         headers = {"Content-Type": "application/json", "x-goog-api-key": key}
-        gen_cfg: dict = {"maxOutputTokens": max_tokens}
-        if json_mode:
-            gen_cfg["responseMimeType"] = "application/json"
         body = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": gen_cfg,
+            "generationConfig": {"maxOutputTokens": max_tokens},
         }
-        # 항상 GEMINI_MODEL(2.5-flash) 우선, 실패 시 1.5-flash 폴백
-        # (gemini-2.0-flash 는 일부 계정/지역에서 404 반환하므로 제외)
-        from config import GEMINI_MODEL as _GM
         models = [_GM, "gemini-1.5-flash"]
 
         for model in models:
@@ -879,10 +872,9 @@ class BaseScraper(ABC):
                     if text:
                         self.last_error = ""
                         return text
-                    # 모든 parts 가 thought 이거나 비어있음 → 다음 모델 시도
                     self.last_error = f"Gemini {model} 응답 비어있음"
                 except Exception as exc:  # noqa: BLE001
                     self.last_error = f"Gemini {model} 응답 파싱 오류: {exc}"
-                break  # 재시도 불필요한 오류 → 다음 모델로
+                break
 
         return None

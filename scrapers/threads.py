@@ -126,11 +126,9 @@ class ThreadsScraper(BaseScraper):
     # ------------------------------------------------------------------
     def _prompt(self, limit: int) -> str:
         return (
-            f"지금 한국 Threads(스레드)에서 가장 많이 언급되는 인기 주제/포스트 "
-            f"{limit}개를 찾아줘. JSON 배열로만 답하고 각 항목은 "
-            '{"title": "...", "summary": "1-2줄 요약", '
-            '"url": "https://..." (없으면 빈 문자열), "engagement": "대략적 반응"} '
-            "필드를 포함해. 다른 설명 없이 JSON만."
+            f"한국 Threads(스레드)에서 현재 인기 있는 주제/포스트 {limit}개를 "
+            "아래 형식의 JSON 배열로만 출력해. 코드블럭·설명·추가 텍스트 없이 배열 자체만:\n"
+            '[{"title":"제목","summary":"1-2줄 요약","url":"","engagement":"인기도"}]'
         )
 
     @staticmethod
@@ -194,7 +192,7 @@ class ThreadsScraper(BaseScraper):
         return items
 
     def _fetch_via_gemini(self, limit: int) -> list[dict]:
-        raw_text = self.gemini_call(self._prompt(limit), json_mode=True)
+        raw_text = self.gemini_call(self._prompt(limit))
         if not raw_text:
             return []
         return self._parse_response(raw_text, limit)

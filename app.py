@@ -394,6 +394,11 @@ def collect_from(keys: tuple[str, ...], limit: int) -> dict:
         except Exception as exc:  # noqa: BLE001
             return key, [], f"{type(exc).__name__}: {str(exc)[:120]}"
 
+    # 스레드에서 st.secrets 접근이 불안정할 수 있으므로
+    # 메인 스레드에서 미리 os.environ 에 캐싱
+    from config import get_gemini_key, get_scrapecreators_key, get_youtube_key
+    get_gemini_key(); get_scrapecreators_key(); get_youtube_key()
+
     with ThreadPoolExecutor(max_workers=8) as ex:
         futures = {ex.submit(_run, k): k for k in keys}
         for fut in as_completed(futures):
