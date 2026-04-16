@@ -613,6 +613,9 @@ if run_btn:
                     del cache[old_key]
 
         st.session_state.results = items
+        # 플랫폼 뱃지 선택 초기화: 이전 수집과 소스 목록이 달라지면 Streamlit이
+        # 이전 상태와 새 options를 비교해 빈 선택으로 만드는 현상 방지
+        st.session_state.pop("platform_pills", None)
         st.session_state.last_summary = {
             "total": len(items),
             "elapsed": elapsed,

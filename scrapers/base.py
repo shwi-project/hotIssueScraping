@@ -163,13 +163,15 @@ class BaseScraper(ABC):
                 raise last_exc
 
         if self.encoding:
+            # EUC-KR 등 비UTF-8 인코딩은 response.content를 직접 디코딩.
+            # curl_cffi는 .encoding 할당을 예외 없이 조용히 무시하므로
+            # try/except로는 감지 불가 → 무조건 content 기반으로 처리.
             try:
-                response.encoding = self.encoding
-            except Exception:  # noqa: BLE001 — curl_cffi Response는 encoding 속성 다를 수 있음
-                # curl_cffi는 .encoding 속성 할당을 지원하지 않으므로 content를 직접 디코딩
+                time.sleep(REQUEST_DELAY)
+                return response.content.decode(self.encoding, errors="replace")
+            except Exception:  # noqa: BLE001
                 try:
-                    time.sleep(REQUEST_DELAY)
-                    return response.content.decode(self.encoding, errors="replace")
+                    response.encoding = self.encoding
                 except Exception:  # noqa: BLE001
                     pass
         else:

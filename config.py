@@ -30,6 +30,8 @@ def _get_key(*names: str) -> str | None:
             return v
 
     # 2) Streamlit secrets — 전체를 광역 try/except로 감싸서 어떠한 오류도 회피
+    # 찾은 값은 os.environ에도 캐싱: ThreadPoolExecutor 스레드에서 st.secrets 접근이
+    # 불안정할 때 다음 호출부터 os.getenv()로 바로 반환되도록 보장
     try:
         import streamlit as st  # type: ignore
         # st.secrets 접근 자체가 secrets.toml 없을 때 예외 던질 수 있음
@@ -39,7 +41,9 @@ def _get_key(*names: str) -> str | None:
                 # KeyError / StreamlitSecretNotFoundError 모두 try로 흡수
                 v = secrets.get(name) if hasattr(secrets, "get") else None
                 if v:
-                    return str(v)
+                    v = str(v)
+                    os.environ[name] = v  # 스레드에서도 os.getenv()로 접근 가능하도록 캐싱
+                    return v
             except Exception:  # noqa: BLE001
                 continue
     except Exception:  # noqa: BLE001
