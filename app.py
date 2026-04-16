@@ -1145,6 +1145,43 @@ GEMINI_API_KEY=AIzaSy...
             """
         )
 
+        # Gemini API 연결 테스트
+        st.markdown("### 🧪 API 연결 테스트")
+        if st.button("Gemini API 테스트", key="btn_gemini_test"):
+            _key = get_gemini_key()
+            if not _key:
+                st.error("❌ GEMINI_API_KEY 없음 — Streamlit Secrets 또는 .env에 키를 등록하세요.")
+            else:
+                st.info(f"키 확인됨: `{_key[:8]}...{_key[-4:]}` ({len(_key)}자)")
+                with st.spinner("Gemini API 호출 중..."):
+                    import requests as _rq_test
+                    _models = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
+                    _base_url = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
+                    _hdrs = {"Content-Type": "application/json", "x-goog-api-key": _key}
+                    _body = {
+                        "contents": [{"parts": [{"text": "안녕하세요. 한국어로 짧게 답하세요."}]}],
+                        "generationConfig": {"maxOutputTokens": 50},
+                    }
+                    for _m in _models:
+                        try:
+                            _r = _rq_test.post(_base_url.format(m=_m), headers=_hdrs, json=_body, timeout=20)
+                            if _r.ok:
+                                try:
+                                    _parts = _r.json()["candidates"][0]["content"].get("parts", [])
+                                    _txt = " ".join(p.get("text","") for p in _parts if not p.get("thought") and p.get("text"))
+                                except Exception:
+                                    _txt = "(응답 파싱 오류)"
+                                st.success(f"✅ **{_m}** 성공!\n\n응답: `{_txt[:100]}`")
+                                break
+                            else:
+                                try:
+                                    _err = _r.json().get("error", {}).get("message", _r.text[:200])
+                                except Exception:
+                                    _err = _r.text[:200]
+                                st.warning(f"⚠️ **{_m}** 실패 (HTTP {_r.status_code}): {_err}")
+                        except Exception as _exc:
+                            st.warning(f"⚠️ **{_m}** 연결 오류: {_exc}")
+
     # -----------------------------------------------------------------------
     # YouTube Data API
     # -----------------------------------------------------------------------
