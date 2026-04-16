@@ -58,13 +58,13 @@ def get_anthropic_key() -> str | None:
 
 
 def get_gemini_key() -> str | None:
-    """Google Gemini AI 분석용 키 (Anthropic 대체 가능)."""
-    return _get_key("GEMINI_API_KEY", "GOOGLE_API_KEY")
+    """Google Gemini AI 분석용 키 — GEMINI_API_KEY 전용 (YouTube 키와 혼용 방지)."""
+    return _get_key("GEMINI_API_KEY")
 
 
 def get_youtube_key() -> str | None:
-    """YouTube Data API v3 전용 키."""
-    return _get_key("YOUTUBE_API_KEY")
+    """YouTube Data API v3 전용 키. GOOGLE_API_KEY는 하위 호환 폴백."""
+    return _get_key("YOUTUBE_API_KEY", "GOOGLE_API_KEY")
 
 
 def get_reddit_creds() -> tuple[str, str] | None:

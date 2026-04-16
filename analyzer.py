@@ -63,15 +63,19 @@ class AnalyzerError(Exception):
     pass
 
 
-def _strip_code_fence(text: str) -> str:
+def _extract_json(text: str) -> str:
+    """AI 응답에서 JSON 부분만 추출. 코드 펜스·앞뒤 텍스트 제거."""
+    import re
     text = text.strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        for prefix in ("json\n", "JSON\n", "json ", "JSON "):
-            if text.startswith(prefix):
-                text = text[len(prefix):]
-                break
-    return text.strip()
+    # 코드 펜스 제거
+    fence = re.search(r"```(?:json)?\s*([\s\S]+?)```", text)
+    if fence:
+        return fence.group(1).strip()
+    # 코드 펜스 없이 JSON만 있는 경우: 첫 [ 또는 { 부터 끝까지 추출
+    m = re.search(r"(\[[\s\S]*\]|\{[\s\S]*\})", text)
+    if m:
+        return m.group(1).strip()
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -122,11 +126,18 @@ def _call_api(client_info: tuple[str, Any], prompt: str, max_tokens: int) -> str
             blk.text for blk in resp.content if getattr(blk, "type", "") == "text"
         )
     else:  # gemini
+        import google.generativeai as genai  # type: ignore
         resp = client.generate_content(
             prompt,
-            generation_config={"max_output_tokens": max_tokens},
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=max_tokens,
+            ),
         )
-        return resp.text
+        # 안전 필터 차단 시 resp.text 접근하면 ValueError 발생
+        try:
+            return resp.text
+        except ValueError as exc:
+            raise AnalyzerError(f"Gemini 안전 필터 차단: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +180,7 @@ def _analyze_chunk(client_info: tuple[str, Any], chunk: list[dict]) -> list[dict
 
     try:
         text = _call_api(client_info, prompt, max_tokens=4096)
-        parsed = json.loads(_strip_code_fence(text))
+        parsed = json.loads(_extract_json(text))
         if not isinstance(parsed, list):
             raise AnalyzerError("배열이 아님")
     except Exception as exc:  # noqa: BLE001
@@ -211,7 +222,7 @@ def analyze_single(item: dict) -> dict:
     )
     try:
         text = _call_api(client_info, prompt, max_tokens=1024)
-        data = json.loads(_strip_code_fence(text))
+        data = json.loads(_extract_json(text))
         return {**item, "analysis": {
             "summary": data.get("summary", ""),
             "shorts_idea": data.get("shorts_idea", ""),

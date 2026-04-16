@@ -1054,9 +1054,9 @@ elif _page == "⚙️ 설정":
 
     st.header("⚙️ 설정")
     st.caption(
-        "**API 키는 모두 필수입니다.** 키가 없으면 해당 플랫폼 수집이 안 되거나 "
-        "차단으로 실패할 확률이 높아요. 아래 가이드대로 발급받고 "
-        "**Streamlit Cloud Secrets** 또는 **로컬 `.env`** 에 저장하세요."
+        "AI 분석은 **GEMINI_API_KEY** (Google AI Studio) 또는 **ANTHROPIC_API_KEY** 중 하나만 있으면 됩니다. "
+        "YouTube 수집은 **YOUTUBE_API_KEY** (Google Cloud Console, AI Studio 키와 다른 키) 가 필요합니다. "
+        "키는 **Streamlit Cloud Secrets** 또는 **로컬 `.env`** 에 저장하세요."
     )
 
     # 각 키 상태 — 에러 안전하게 조회 (st.secrets 미존재 대비)
@@ -1126,7 +1126,7 @@ ANTHROPIC_API_KEY=sk-ant-api03-XXXXX...
     # -----------------------------------------------------------------------
     # Gemini
     # -----------------------------------------------------------------------
-    with st.expander("✨ GEMINI_API_KEY — Google Gemini AI 분석 (Anthropic 대체)", expanded=True):
+    with st.expander("✨ GEMINI_API_KEY — Google Gemini AI 분석 (Anthropic 대체)", expanded=False):
         st.markdown(
             """
 **사용 범위**
@@ -1163,7 +1163,7 @@ GEMINI_API_KEY=AIzaSy...
     # -----------------------------------------------------------------------
     # YouTube Data API
     # -----------------------------------------------------------------------
-    with st.expander("📺 YOUTUBE_API_KEY — YouTube Data API v3 (YouTube 수집 전용)", expanded=True):
+    with st.expander("📺 YOUTUBE_API_KEY — YouTube Data API v3 (YouTube 수집 전용)", expanded=False):
         st.markdown(
             """
 **사용 범위**
@@ -1203,7 +1203,7 @@ YOUTUBE_API_KEY=AIzaSy...
     # -----------------------------------------------------------------------
     # Reddit
     # -----------------------------------------------------------------------
-    with st.expander("👽 REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET — Reddit OAuth", expanded=True):
+    with st.expander("👽 REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET — Reddit OAuth", expanded=False):
         st.markdown(
             """
 **사용 범위**
@@ -1244,7 +1244,7 @@ REDDIT_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxx
     # -----------------------------------------------------------------------
     # Naver
     # -----------------------------------------------------------------------
-    with st.expander("🟢 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET — 네이버 개발자 API", expanded=True):
+    with st.expander("🟢 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET — 네이버 개발자 API", expanded=False):
         st.markdown(
             """
 **사용 범위**
