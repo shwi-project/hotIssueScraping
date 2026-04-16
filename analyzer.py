@@ -67,6 +67,45 @@ class AnalyzerError(Exception):
 last_error: str = ""
 
 
+def _repair_json(text: str) -> str:
+    """잘린 JSON 문자열 복구 시도.
+
+    토큰 한도로 응답이 중간에 끊겼을 때 열린 따옴표·괄호를 닫아준다.
+    완벽한 복구는 불가능하지만 JSONDecodeError를 줄여준다.
+    """
+    # 열린 문자열(홀수 개 비이스케이프 따옴표) → 닫기
+    depth_curly = 0
+    depth_square = 0
+    in_string = False
+    escape_next = False
+    for ch in text:
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == "\\" and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if not in_string:
+            if ch == "{":
+                depth_curly += 1
+            elif ch == "}":
+                depth_curly -= 1
+            elif ch == "[":
+                depth_square += 1
+            elif ch == "]":
+                depth_square -= 1
+    # 열린 문자열 닫기
+    if in_string:
+        text += '"'
+    # 열린 괄호 닫기
+    text += "}" * max(depth_curly, 0)
+    text += "]" * max(depth_square, 0)
+    return text
+
+
 def _extract_json(text: str) -> str:
     """AI 응답에서 JSON 부분만 추출. 코드 펜스·앞뒤 텍스트 제거."""
     import re
@@ -197,7 +236,11 @@ def _analyze_chunk(client_info: tuple[str, Any], chunk: list[dict]) -> list[dict
 
     try:
         text = _call_api(client_info, prompt, max_tokens=4096)
-        parsed = json.loads(_extract_json(text))
+        extracted = _extract_json(text)
+        try:
+            parsed = json.loads(extracted)
+        except json.JSONDecodeError:
+            parsed = json.loads(_repair_json(extracted))
         if not isinstance(parsed, list):
             raise AnalyzerError("배열이 아님")
     except Exception as exc:  # noqa: BLE001
@@ -246,8 +289,12 @@ def analyze_single(item: dict) -> dict:
         summary=item.get("summary", ""),
     )
     try:
-        text = _call_api(client_info, prompt, max_tokens=1024)
-        data = json.loads(_extract_json(text))
+        text = _call_api(client_info, prompt, max_tokens=2048)
+        extracted = _extract_json(text)
+        try:
+            data = json.loads(extracted)
+        except json.JSONDecodeError:
+            data = json.loads(_repair_json(extracted))
         return {**item, "analysis": {
             "summary": data.get("summary", ""),
             "shorts_idea": data.get("shorts_idea", ""),
