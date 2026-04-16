@@ -85,6 +85,7 @@ st.markdown(
     div[class*="st-key-ai_btn_"] button span,
     div[class*="st-key-ai_btn_"] button div {
         font-size: 13px !important;
+        font-weight: 700 !important;
         color: white !important;
         line-height: 1 !important;
     }
