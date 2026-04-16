@@ -189,7 +189,9 @@ class TiktokTrendsScraper(BaseScraper):
             if not resp.ok:
                 self.last_error = f"Gemini API {resp.status_code}: {resp.text[:100]}"
                 return []
-            text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            # thinking 모드 대응: 모든 parts의 text를 합침
+            parts = resp.json()["candidates"][0]["content"].get("parts", [])
+            text = "\n".join(p.get("text", "") for p in parts if p.get("text"))
             extracted = self._extract_json(text)
             try:
                 data = json.loads(extracted)

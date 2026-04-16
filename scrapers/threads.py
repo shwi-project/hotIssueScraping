@@ -198,7 +198,8 @@ class ThreadsScraper(BaseScraper):
             if not resp.ok:
                 self.last_error = f"Gemini API {resp.status_code}"
                 return []
-            text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            parts = resp.json()["candidates"][0]["content"].get("parts", [])
+            text = "\n".join(p.get("text", "") for p in parts if p.get("text"))
             return self._parse_response(text, limit)
         except Exception as exc:  # noqa: BLE001
             self.last_error = f"Gemini 호출 실패: {type(exc).__name__}: {str(exc)[:100]}"

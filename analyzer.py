@@ -166,7 +166,12 @@ def _call_api(client_info: tuple[str, Any], prompt: str, max_tokens: int) -> str
             raise AnalyzerError(f"Gemini API {resp.status_code}: {msg}")
         data = resp.json()
         try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
+            # thinking 모드 대응: 모든 parts의 text를 합침
+            parts = data["candidates"][0]["content"].get("parts", [])
+            text = "\n".join(p.get("text", "") for p in parts if p.get("text"))
+            if not text:
+                raise AnalyzerError(f"Gemini 응답 비어있음: {data}")
+            return text
         except (KeyError, IndexError) as exc:
             raise AnalyzerError(f"Gemini 응답 파싱 실패: {data}") from exc
     raise AnalyzerError(f"Gemini 429 한도 초과: {last_err}")
