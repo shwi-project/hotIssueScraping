@@ -73,7 +73,7 @@ st.markdown(
         border: none !important;
         border-radius: 12px !important;
         padding: 1px 8px !important;
-        font-size: 0.6rem !important;
+        font-size: 15px !important;
         font-weight: 600 !important;
         letter-spacing: 0.01em !important;
         height: auto !important;
