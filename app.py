@@ -722,19 +722,23 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
             if st.button("🤖 AI 분석", key=f"{key_prefix}_single"):
                 with st.spinner("분석 중…"):
                     analyzed = analyzer.analyze_single(item)
-                    # 캐시에 저장
-                    if analyzed.get("analysis") and item.get("url"):
-                        cache = st.session_state.analysis_cache
-                        cache[item["url"]] = analyzed["analysis"]
-                        if len(cache) > MAX_CACHE_SIZE:
-                            excess = len(cache) - MAX_CACHE_SIZE
-                            for old_key in list(cache.keys())[:excess]:
-                                del cache[old_key]
-                    for i, r in enumerate(st.session_state.results):
-                        if r.get("url") == item.get("url"):
-                            st.session_state.results[i] = analyzed
-                            break
-                st.rerun()
+                    if analyzed.get("analysis"):
+                        # 캐시에 저장
+                        if item.get("url"):
+                            cache = st.session_state.analysis_cache
+                            cache[item["url"]] = analyzed["analysis"]
+                            if len(cache) > MAX_CACHE_SIZE:
+                                excess = len(cache) - MAX_CACHE_SIZE
+                                for old_key in list(cache.keys())[:excess]:
+                                    del cache[old_key]
+                        for i, r in enumerate(st.session_state.results):
+                            if r.get("url") == item.get("url"):
+                                st.session_state.results[i] = analyzed
+                                break
+                        st.rerun()
+                    else:
+                        err_msg = analyzer.last_error or "알 수 없는 오류"
+                        st.error(f"AI 분석 실패: {err_msg}")
 
 
 # ---------------------------------------------------------------------------

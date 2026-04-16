@@ -63,6 +63,10 @@ class AnalyzerError(Exception):
     pass
 
 
+# 마지막 단일 분석 오류 메시지 (app.py 에서 읽어 사용자에게 표시)
+last_error: str = ""
+
+
 def _extract_json(text: str) -> str:
     """AI 응답에서 JSON 부분만 추출. 코드 펜스·앞뒤 텍스트 제거."""
     import re
@@ -208,9 +212,17 @@ def _analyze_chunk(client_info: tuple[str, Any], chunk: list[dict]) -> list[dict
 
 
 def analyze_single(item: dict) -> dict:
-    """항목 하나만 분석. 실패 시 원본 그대로."""
+    """항목 하나만 분석. 실패 시 원본 그대로.
+
+    실패 이유는 모듈 수준 `last_error` 에 기록 (app.py 에서 표시용).
+    """
+    global last_error
+    last_error = ""
+
     client_info = _get_client()
     if client_info is None:
+        last_error = "API 키 없음 — 설정 탭에서 GEMINI_API_KEY 또는 ANTHROPIC_API_KEY를 등록하세요."
+        logger.warning("analyze_single: %s", last_error)
         return item
 
     prompt = SINGLE_PROMPT_TEMPLATE.format(
@@ -231,7 +243,8 @@ def analyze_single(item: dict) -> dict:
             "score": int(data.get("score", 3) or 3),
         }}
     except Exception as exc:  # noqa: BLE001
-        logger.warning("단일 분석 실패: %s", exc)
+        last_error = f"{type(exc).__name__}: {str(exc)[:200]}"
+        logger.warning("단일 분석 실패: %s", last_error)
         return item
 
 
