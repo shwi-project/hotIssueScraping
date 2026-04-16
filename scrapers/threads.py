@@ -52,13 +52,45 @@ class ThreadsScraper(BaseScraper):
             "필드를 포함해. 다른 설명 없이 JSON만."
         )
 
-    def _parse_response(self, text: str, limit: int) -> list[dict]:
+    @staticmethod
+    def _extract_json(text: str) -> str:
+        import re
         text = text.strip()
-        if text.startswith("```"):
-            text = text.strip("`")
-            if text.lower().startswith("json"):
-                text = text[4:]
-        data = json.loads(text)
+        fence = re.search(r"```(?:json)?\s*([\s\S]+?)```", text)
+        if fence:
+            return fence.group(1).strip()
+        m = re.search(r"(\[[\s\S]*\]|\{[\s\S]*\})", text)
+        if m:
+            return m.group(1).strip()
+        return text
+
+    @staticmethod
+    def _repair_json(text: str) -> str:
+        depth_c = depth_s = 0
+        in_str = esc = False
+        for ch in text:
+            if esc:
+                esc = False; continue
+            if ch == "\\" and in_str:
+                esc = True; continue
+            if ch == '"':
+                in_str = not in_str; continue
+            if not in_str:
+                if ch == "{": depth_c += 1
+                elif ch == "}": depth_c -= 1
+                elif ch == "[": depth_s += 1
+                elif ch == "]": depth_s -= 1
+        if in_str: text += '"'
+        text += "}" * max(depth_c, 0)
+        text += "]" * max(depth_s, 0)
+        return text
+
+    def _parse_response(self, text: str, limit: int) -> list[dict]:
+        extracted = self._extract_json(text)
+        try:
+            data = json.loads(extracted)
+        except json.JSONDecodeError:
+            data = json.loads(self._repair_json(extracted))
         items: list[dict] = []
         for row in data[:limit]:
             items.append(self._normalize({

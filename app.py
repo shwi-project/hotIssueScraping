@@ -731,17 +731,15 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                             if r.get("url") == item.get("url"):
                                 st.session_state.results[i] = analyzed
                                 break
-                        # platform_pills 상태를 명시적으로 보존 (rerun 시 초기화 방지)
-                        if "platform_pills" not in st.session_state:
-                            st.session_state["platform_pills"] = [
-                                r.get("source", "")
-                                for r in st.session_state.results
+                        # platform_pills: pop 후 _platform_restore에 저장 →
+                        # rerun 후 pills 재렌더 시 default로 복원
+                        _cur = st.session_state.pop("platform_pills", None)
+                        if _cur is None:
+                            _cur = sorted({
+                                r.get("source", "") for r in st.session_state.results
                                 if r.get("source")
-                            ]
-                            # 중복 제거 및 정렬
-                            st.session_state["platform_pills"] = sorted(
-                                set(st.session_state["platform_pills"])
-                            )
+                            })
+                        st.session_state["_platform_restore"] = _cur
                         st.rerun()
                     else:
                         if not _analysis_err:
@@ -835,13 +833,15 @@ if _page == "📊 결과":
     else:
         all_sources = sorted({r.get("source", "") for r in results if r.get("source")})
         st.markdown("##### 플랫폼 (탭하여 켜기/끄기 — 모두 끄면 결과 숨김)")
+        # AI 분석 rerun 후 이전 선택 복원
+        _pills_default = st.session_state.pop("_platform_restore", all_sources)
         # st.pills (1.36+) — 뱃지 토글 형태. 없으면 multiselect로 폴백
         try:
             selected_platforms = st.pills(
                 label="플랫폼 필터",
                 options=all_sources,
                 selection_mode="multi",
-                default=all_sources,
+                default=_pills_default,
                 label_visibility="collapsed",
                 key="platform_pills",
             )
