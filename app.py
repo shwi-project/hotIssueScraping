@@ -1,6 +1,7 @@
 """🎬 쇼츠 소재 수집기 — Streamlit 메인 앱."""
 from __future__ import annotations
 
+import importlib
 import logging
 import os
 import time
@@ -723,6 +724,7 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                 with st.spinner("분석 중…"):
                     _analysis_err = ""
                     try:
+                        importlib.reload(analyzer)  # 모듈 캐시 강제 갱신
                         analyzed = analyzer.analyze_single(item)
                         _analysis_err = getattr(analyzer, "last_error", "")
                     except Exception as _exc:
