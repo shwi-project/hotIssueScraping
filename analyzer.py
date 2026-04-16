@@ -99,19 +99,10 @@ def _get_client() -> tuple[str, Any] | None:
         except Exception as exc:  # noqa: BLE001
             logger.warning("Anthropic 클라이언트 초기화 실패: %s", exc)
 
-    # 2) Gemini
+    # 2) Gemini — SDK 대신 REST API 직접 호출 (SDK 버전 의존성 제거)
     gemini_key = get_gemini_key()
     if gemini_key:
-        try:
-            import google.generativeai as genai  # type: ignore
-            genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel(
-                model_name=GEMINI_MODEL,
-                system_instruction=ANALYSIS_SYSTEM,
-            )
-            return ("gemini", model)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Gemini 클라이언트 초기화 실패: %s", exc)
+        return ("gemini", gemini_key)
 
     return None
 
@@ -129,19 +120,32 @@ def _call_api(client_info: tuple[str, Any], prompt: str, max_tokens: int) -> str
         return "".join(
             blk.text for blk in resp.content if getattr(blk, "type", "") == "text"
         )
-    else:  # gemini
-        import google.generativeai as genai  # type: ignore
-        resp = client.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                max_output_tokens=max_tokens,
-            ),
+    else:  # gemini — REST API 직접 호출
+        import requests as _rq
+        api_key = client  # _get_client에서 키 문자열을 그대로 전달
+        # v1beta 엔드포인트 사용 (최신 모델 지원)
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{GEMINI_MODEL}:generateContent?key={api_key}"
         )
-        # 안전 필터 차단 시 resp.text 접근하면 ValueError 발생
+        body = {
+            "system_instruction": {"parts": [{"text": ANALYSIS_SYSTEM}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"maxOutputTokens": max_tokens},
+        }
+        resp = _rq.post(url, json=body, timeout=60)
+        if resp.status_code != 200:
+            try:
+                err = resp.json().get("error", {})
+                msg = err.get("message", resp.text[:200])
+            except Exception:
+                msg = resp.text[:200]
+            raise AnalyzerError(f"Gemini API {resp.status_code}: {msg}")
+        data = resp.json()
         try:
-            return resp.text
-        except ValueError as exc:
-            raise AnalyzerError(f"Gemini 안전 필터 차단: {exc}") from exc
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError) as exc:
+            raise AnalyzerError(f"Gemini 응답 파싱 실패: {data}") from exc
 
 
 # ---------------------------------------------------------------------------
