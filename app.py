@@ -721,7 +721,13 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
         elif analyzer.is_available():
             if st.button("🤖 AI 분석", key=f"{key_prefix}_single"):
                 with st.spinner("분석 중…"):
-                    analyzed = analyzer.analyze_single(item)
+                    _analysis_err = ""
+                    try:
+                        analyzed = analyzer.analyze_single(item)
+                        _analysis_err = getattr(analyzer, "last_error", "")
+                    except Exception as _exc:
+                        analyzed = item
+                        _analysis_err = f"{type(_exc).__name__}: {_exc}"
                     if analyzed.get("analysis"):
                         # 캐시에 저장
                         if item.get("url"):
@@ -737,8 +743,14 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                                 break
                         st.rerun()
                     else:
-                        err_msg = getattr(analyzer, "last_error", "") or "알 수 없는 오류"
-                        st.error(f"AI 분석 실패: {err_msg}")
+                        if not _analysis_err:
+                            # last_error도 없고 예외도 없으면 provider 정보 직접 확인
+                            from config import get_anthropic_key, get_gemini_key
+                            if not get_anthropic_key() and not get_gemini_key():
+                                _analysis_err = "API 키 없음 — 설정 탭에서 GEMINI_API_KEY 또는 ANTHROPIC_API_KEY를 등록하세요."
+                            else:
+                                _analysis_err = "API 호출 실패 — 키가 유효한지 확인하세요."
+                        st.error(f"AI 분석 실패: {_analysis_err}")
 
 
 # ---------------------------------------------------------------------------
