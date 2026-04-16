@@ -50,6 +50,8 @@ class BaseScraper(ABC):
     category: str = "기타"
     #: 응답 인코딩 명시가 필요한 경우 (예: 뽐뿌 = "euc-kr")
     encoding: str | None = None
+    #: 스크래퍼별 타임아웃 오버라이드 (None이면 REQUEST_TIMEOUT 사용)
+    scraper_timeout: int | None = None
 
     def __init__(self) -> None:
         # cloudscraper가 있으면 Cloudflare JS 챌린지 자동 해결 (더쿠/에펨 등)
@@ -129,10 +131,11 @@ class BaseScraper(ABC):
                 if p.scheme and p.netloc:
                     merged_headers.setdefault("Referer", f"{p.scheme}://{p.netloc}/")
 
+            _timeout = self.scraper_timeout if self.scraper_timeout is not None else REQUEST_TIMEOUT
             try:
                 response = self.session.get(
                     target, params=params, headers=merged_headers,
-                    timeout=REQUEST_TIMEOUT,
+                    timeout=_timeout,
                 )
                 response.raise_for_status()
                 break  # 성공
@@ -143,7 +146,7 @@ class BaseScraper(ABC):
                     try:
                         response = self._cffi_session.get(
                             target, params=params, headers=merged_headers,
-                            timeout=REQUEST_TIMEOUT, impersonate="chrome124",
+                            timeout=_timeout, impersonate="chrome124",
                         )
                         response.raise_for_status()
                         break  # curl_cffi 성공
