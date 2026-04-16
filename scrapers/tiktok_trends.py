@@ -199,7 +199,7 @@ class TiktokTrendsScraper(BaseScraper):
                 return []
             # thinking 모드 대응: 모든 parts의 text를 합침
             parts = resp.json()["candidates"][0]["content"].get("parts", [])
-            text = "\n".join(p.get("text", "") for p in parts if p.get("text"))
+            text = "\n".join(p.get("text", "") for p in parts if p.get("text") and not p.get("thought"))
             extracted = self._extract_json(text)
             try:
                 data = json.loads(extracted)

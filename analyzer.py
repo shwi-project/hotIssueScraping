@@ -168,7 +168,7 @@ def _call_api(client_info: tuple[str, Any], prompt: str, max_tokens: int) -> str
         try:
             # thinking 모드 대응: 모든 parts의 text를 합침
             parts = data["candidates"][0]["content"].get("parts", [])
-            text = "\n".join(p.get("text", "") for p in parts if p.get("text"))
+            text = "\n".join(p.get("text", "") for p in parts if p.get("text") and not p.get("thought"))
             if not text:
                 raise AnalyzerError(f"Gemini 응답 비어있음: {data}")
             return text
