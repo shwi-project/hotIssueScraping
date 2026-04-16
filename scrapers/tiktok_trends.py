@@ -186,8 +186,7 @@ class TiktokTrendsScraper(BaseScraper):
                 continue
 
         if not isinstance(parsed, list):
-            logger.warning("TikTok Gemini JSON 파싱 실패, raw: %s", raw_text[:300])
-            self.last_error = "Gemini 응답 파싱 실패 (JSON 아님)"
+            self.last_error = f"[DEBUG] raw='{raw_text[:200]}'"
             return []
 
         items: list[dict] = []
