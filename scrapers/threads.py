@@ -1,18 +1,23 @@
 """Threads 인기 포스트 스크래퍼.
 
-Threads는 공식 공개 API가 없고 직접 스크래핑도 어려움. 본 구현은
-Anthropic 또는 Gemini AI를 이용해 최신 트렌드 키워드를 추정한다.
+우선순위:
+1) SCRAPECREATORS_API_KEY → 실제 Threads 포스트 수집 (권장)
+2) Anthropic Claude → AI 추정 트렌드
+3) Gemini → AI 추정 트렌드 (fallback)
 """
 from __future__ import annotations
 
 import json
 import logging
 
-from config import ANTHROPIC_MODEL, GEMINI_MODEL, get_anthropic_key, get_gemini_key
+from config import ANTHROPIC_MODEL, GEMINI_MODEL, get_anthropic_key, get_gemini_key, get_scrapecreators_key
 
 from .base import BaseScraper
 
 logger = logging.getLogger(__name__)
+
+# 한국 관련 검색 키워드 (ScrapeCreators 검색용)
+KR_KEYWORDS = ["한국", "이슈", "핫이슈", "트렌드"]
 
 
 class ThreadsScraper(BaseScraper):
@@ -20,27 +25,106 @@ class ThreadsScraper(BaseScraper):
     base_url = "https://www.threads.net/"
     category = "연예"
 
+    SCRAPECREATORS_URL = "https://api.scrapecreators.com/v1/threads/search"
+
     def parse(self, html: str) -> list[dict]:
         return []
 
     def get_trending(self, limit: int = 10) -> list[dict]:
         self.last_error = ""
 
-        # 1) Anthropic 우선
+        # 1) ScrapeCreators — 실제 Threads 포스트
+        sc_key = get_scrapecreators_key()
+        if sc_key:
+            items = self._fetch_via_scrapecreators(sc_key, limit)
+            if items:
+                return items
+
+        # 2) Anthropic
         if get_anthropic_key():
             items = self._fetch_via_anthropic(limit)
             if items:
                 return items
 
-        # 2) Gemini fallback
+        # 3) Gemini
         if get_gemini_key():
             items = self._fetch_via_gemini(limit)
             if items:
                 return items
 
         if not self.last_error:
-            self.last_error = "ANTHROPIC_API_KEY 또는 GEMINI_API_KEY 필요"
+            self.last_error = "SCRAPECREATORS_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY 중 하나 필요"
         return []
+
+    # ------------------------------------------------------------------
+    def _fetch_via_scrapecreators(self, api_key: str, limit: int) -> list[dict]:
+        try:
+            import requests as _rq
+            seen: set[str] = set()
+            items: list[dict] = []
+
+            for kw in KR_KEYWORDS:
+                if len(items) >= limit:
+                    break
+                try:
+                    resp = _rq.get(
+                        self.SCRAPECREATORS_URL,
+                        params={"query": kw},
+                        headers={"x-api-key": api_key},
+                        timeout=20,
+                    )
+                    if not resp.ok:
+                        self.last_error = f"ScrapeCreators API {resp.status_code}: {resp.text[:100]}"
+                        continue
+                    data = resp.json()
+                    posts = data.get("data", data.get("posts", []))
+                    for post in posts:
+                        if len(items) >= limit:
+                            break
+                        # 포스트 텍스트
+                        caption = post.get("caption") or {}
+                        if isinstance(caption, dict):
+                            text = caption.get("text", "")
+                        else:
+                            text = str(caption)
+                        if not text:
+                            text = post.get("text", "")
+                        if not text or len(text) < 5:
+                            continue
+                        # URL 구성
+                        username = (post.get("user") or {}).get("username", "")
+                        post_id = post.get("pk") or post.get("id", "")
+                        url = (
+                            f"https://www.threads.net/@{username}/post/{post_id}"
+                            if username and post_id
+                            else "https://www.threads.net/"
+                        )
+                        if url in seen:
+                            continue
+                        seen.add(url)
+                        likes = int(post.get("like_count", 0) or 0)
+                        comments = int(post.get("reply_count", post.get("text_post_app_info", {}).get("direct_reply_count", 0)) or 0)
+                        title = text[:80] + ("…" if len(text) > 80 else "")
+                        items.append(self._normalize({
+                            "title": title,
+                            "summary": text[:200],
+                            "url": url,
+                            "score": likes,
+                            "views": 0,
+                            "comments": comments,
+                            "engagement": self.format_engagement(score=likes, views=0, comments=comments),
+                        }))
+                except Exception as exc:  # noqa: BLE001
+                    logger.info("ScrapeCreators '%s' 실패: %s", kw, exc)
+                    continue
+
+            if items:
+                self.last_error = ""
+            return items
+        except Exception as exc:  # noqa: BLE001
+            self.last_error = f"ScrapeCreators 실패: {type(exc).__name__}: {str(exc)[:100]}"
+            logger.warning("Threads ScrapeCreators 실패: %s", exc)
+            return []
 
     # ------------------------------------------------------------------
     def _prompt(self, limit: int) -> str:
@@ -60,14 +144,11 @@ class ThreadsScraper(BaseScraper):
         if fence:
             return fence.group(1).strip()
         m = re.search(r"(\[[\s\S]*\]|\{[\s\S]*\})", text)
-        if m:
-            return m.group(1).strip()
-        return text
+        return m.group(1).strip() if m else text
 
     @staticmethod
     def _repair_json(text: str) -> str:
         import re
-        # trailing comma 제거 (Gemini 자주 생성)
         text = re.sub(r',(\s*[}\]])', r'\1', text)
         depth_c = depth_s = 0
         in_str = esc = False
@@ -123,20 +204,14 @@ class ThreadsScraper(BaseScraper):
             return self._parse_response(text, limit)
         except Exception as exc:  # noqa: BLE001
             self.last_error = f"Anthropic 호출 실패: {type(exc).__name__}: {str(exc)[:100]}"
-            logger.info("Threads Anthropic 실패: %s", exc)
             return []
 
     def _fetch_via_gemini(self, limit: int) -> list[dict]:
         try:
             import requests as _rq
-            api_key = get_gemini_key()
-            url = (
-                f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"{GEMINI_MODEL}:generateContent"
-            )
             resp = _rq.post(
-                url,
-                headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+                f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+                headers={"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()},
                 json={
                     "contents": [{"parts": [{"text": self._prompt(limit)}]}],
                     "generationConfig": {"maxOutputTokens": 2048},
@@ -150,5 +225,4 @@ class ThreadsScraper(BaseScraper):
             return self._parse_response(text, limit)
         except Exception as exc:  # noqa: BLE001
             self.last_error = f"Gemini 호출 실패: {type(exc).__name__}: {str(exc)[:100]}"
-            logger.info("Threads Gemini 실패: %s", exc)
             return []
