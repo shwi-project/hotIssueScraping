@@ -40,10 +40,9 @@ class TiktokTrendsScraper(BaseScraper):
                 return items
 
         # 2) Gemini — AI 추정
-        if get_gemini_key():
-            items = self._fetch_via_gemini(limit)
-            if items:
-                return items
+        items = self._fetch_via_gemini(limit)
+        if items:
+            return items
 
         if not self.last_error:
             self.last_error = "SCRAPECREATORS_API_KEY 또는 GEMINI_API_KEY 필요"
