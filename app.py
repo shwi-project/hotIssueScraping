@@ -66,22 +66,29 @@ st.markdown(
         background: #FFFFFF;
         box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     }
-    /* AI 분석 버튼 — 아주 작은 pill 스타일 */
+    /* AI 분석 버튼 — 작은 pill 스타일 */
+    div[class*="st-key-ai_btn_"] {
+        display: inline-block !important;
+        transform: scale(0.78);
+        transform-origin: left center;
+        margin: -4px 0 !important;
+    }
     div[class*="st-key-ai_btn_"] button {
         background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
         color: white !important;
         border: none !important;
-        border-radius: 12px !important;
-        padding: 1px 8px !important;
-        font-size: 15px !important;
+        border-radius: 16px !important;
+        padding: 3px 12px !important;
         font-weight: 600 !important;
-        letter-spacing: 0.01em !important;
-        height: auto !important;
-        min-height: 18px !important;
-        line-height: 1.3 !important;
         box-shadow: 0 1px 4px rgba(99,102,241,0.25) !important;
         transition: opacity 0.15s !important;
-        width: auto !important;
+        white-space: nowrap !important;
+    }
+    div[class*="st-key-ai_btn_"] button p,
+    div[class*="st-key-ai_btn_"] button span,
+    div[class*="st-key-ai_btn_"] button div {
+        font-size: 15px !important;
+        color: white !important;
     }
     div[class*="st-key-ai_btn_"] button:hover {
         opacity: 0.82 !important;
