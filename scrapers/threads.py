@@ -84,14 +84,19 @@ class ThreadsScraper(BaseScraper):
                             text = post.get("text", "")
                         if not text or len(text) < 5:
                             continue
-                        # URL 구성
+                        # URL 구성 — permalink > code > 유저 프로필 순 우선순위
+                        # (pk/id는 숫자 내부 ID라 Threads URL에 사용 불가)
                         username = (post.get("user") or {}).get("username", "")
-                        post_id = post.get("pk") or post.get("id", "")
-                        url = (
-                            f"https://www.threads.net/@{username}/post/{post_id}"
-                            if username and post_id
-                            else "https://www.threads.net/"
-                        )
+                        permalink = post.get("permalink") or post.get("link") or ""
+                        code = post.get("code") or post.get("shortcode") or ""
+                        if permalink and permalink.startswith("http"):
+                            url = permalink
+                        elif code and username:
+                            url = f"https://www.threads.net/@{username}/post/{code}"
+                        elif username:
+                            url = f"https://www.threads.net/@{username}"
+                        else:
+                            url = "https://www.threads.net/"
                         if url in seen:
                             continue
                         seen.add(url)
