@@ -14,6 +14,7 @@ import analyzer
 import storage
 from config import (
     CATEGORIES,
+    MAX_CACHE_SIZE,
     MAX_ITEMS_PER_SITE,
     SCRAPER_REGISTRY,
     get_platform_color,
@@ -576,10 +577,40 @@ if run_btn:
 
         items = payload["items"]
 
-        # AI 분석 (배치)
+        # AI 분석 (배치) — analysis_cache로 중복 API 호출 방지
         if ai_on and items and analyzer.is_available():
-            with st.spinner("🤖 AI가 쇼츠 아이디어를 분석하는 중…"):
-                items = analyzer.analyze_batch(items)
+            cache = st.session_state.analysis_cache
+            # 캐시에 없는 항목만 새로 분석
+            uncached = [it for it in items if not (it.get("url") and it["url"] in cache)]
+            cached_urls = {it["url"] for it in items if it.get("url") and it["url"] in cache}
+
+            if uncached:
+                with st.spinner(f"🤖 AI가 쇼츠 아이디어를 분석하는 중… ({len(uncached)}건 신규)"):
+                    analyzed = analyzer.analyze_batch(uncached)
+                # 새 분석 결과를 캐시에 저장
+                for it in analyzed:
+                    if it.get("url") and it.get("analysis"):
+                        cache[it["url"]] = it["analysis"]
+                # uncached → analyzed 로 교체
+                url_to_analyzed = {it.get("url"): it for it in analyzed if it.get("url")}
+                items = [
+                    url_to_analyzed.get(it.get("url"), it) if it.get("url") not in cached_urls
+                    else it
+                    for it in items
+                ]
+
+            # 캐시된 항목에 분석 결과 적용
+            items = [
+                {**it, "analysis": cache[it["url"]]} if (it.get("url") in cache and not it.get("analysis"))
+                else it
+                for it in items
+            ]
+
+            # 캐시 크기 상한 초과 시 오래된 항목부터 제거
+            if len(cache) > MAX_CACHE_SIZE:
+                excess = len(cache) - MAX_CACHE_SIZE
+                for old_key in list(cache.keys())[:excess]:
+                    del cache[old_key]
 
         st.session_state.results = items
         st.session_state.last_summary = {
@@ -687,6 +718,14 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
             if st.button("🤖 AI 분석", key=f"{key_prefix}_single"):
                 with st.spinner("분석 중…"):
                     analyzed = analyzer.analyze_single(item)
+                    # 캐시에 저장
+                    if analyzed.get("analysis") and item.get("url"):
+                        cache = st.session_state.analysis_cache
+                        cache[item["url"]] = analyzed["analysis"]
+                        if len(cache) > MAX_CACHE_SIZE:
+                            excess = len(cache) - MAX_CACHE_SIZE
+                            for old_key in list(cache.keys())[:excess]:
+                                del cache[old_key]
                     for i, r in enumerate(st.session_state.results):
                         if r.get("url") == item.get("url"):
                             st.session_state.results[i] = analyzed

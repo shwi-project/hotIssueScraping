@@ -93,6 +93,7 @@ REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "10"))
 # ---------------------------------------------------------------------------
 ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 ANALYZE_BATCH_SIZE: int = int(os.getenv("ANALYZE_BATCH_SIZE", "20"))
+MAX_CACHE_SIZE: int = int(os.getenv("MAX_CACHE_SIZE", "500"))  # analysis_cache 최대 항목 수
 
 # ---------------------------------------------------------------------------
 # 저장 경로
