@@ -66,24 +66,25 @@ st.markdown(
         background: #FFFFFF;
         box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     }
-    /* AI 분석 버튼 — pill 스타일 */
+    /* AI 분석 버튼 — 작은 pill 스타일 */
     div[class*="st-key-ai_btn_"] button {
         background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
         color: white !important;
         border: none !important;
-        border-radius: 20px !important;
-        padding: 4px 16px !important;
-        font-size: 0.75rem !important;
+        border-radius: 16px !important;
+        padding: 2px 10px !important;
+        font-size: 0.68rem !important;
         font-weight: 600 !important;
         letter-spacing: 0.02em !important;
         height: auto !important;
-        min-height: 28px !important;
-        box-shadow: 0 2px 8px rgba(99,102,241,0.35) !important;
+        min-height: 22px !important;
+        line-height: 1.4 !important;
+        box-shadow: 0 1px 5px rgba(99,102,241,0.30) !important;
         transition: opacity 0.15s !important;
         width: auto !important;
     }
     div[class*="st-key-ai_btn_"] button:hover {
-        opacity: 0.88 !important;
+        opacity: 0.85 !important;
     }
     .item-title {
         font-weight: 700;
@@ -724,6 +725,17 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                             if r.get("url") == item.get("url"):
                                 st.session_state.results[i] = analyzed
                                 break
+                        # platform_pills 상태를 명시적으로 보존 (rerun 시 초기화 방지)
+                        if "platform_pills" not in st.session_state:
+                            st.session_state["platform_pills"] = [
+                                r.get("source", "")
+                                for r in st.session_state.results
+                                if r.get("source")
+                            ]
+                            # 중복 제거 및 정렬
+                            st.session_state["platform_pills"] = sorted(
+                                set(st.session_state["platform_pills"])
+                            )
                         st.rerun()
                     else:
                         if not _analysis_err:

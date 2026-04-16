@@ -118,15 +118,15 @@ SCRAPER_REGISTRY: list[dict] = [
     # (제거된 플랫폼:
     #   - 아카라이브/더쿠/에펨코리아: Cloudflare/자체 방화벽으로 Streamlit Cloud 접근 불가
     #   - 루리웹/인스티즈: HTML 구조 파악 불가로 지속적 파싱 실패)
-    {"key": "dcinside",   "label": "디시인사이드",  "group": "kr", "default": True, "color": "#1D5A8E"},
-    {"key": "ppomppu",    "label": "뽐뿌",          "group": "kr", "default": True, "color": "#FF6B00"},
-    {"key": "inven",      "label": "인벤",          "group": "kr", "default": True, "color": "#00A651"},
-    {"key": "natepan",    "label": "네이트판",      "group": "kr", "default": True, "color": "#EC2028"},
-    {"key": "clien",      "label": "클리앙",        "group": "kr", "default": True, "color": "#3B82F6"},
-    {"key": "bobaedream", "label": "보배드림",      "group": "kr", "default": True, "color": "#333333"},
-    {"key": "mlbpark",    "label": "MLB파크",       "group": "kr", "default": True, "color": "#003DA5"},
-    {"key": "humoruniv",  "label": "웃긴대학",      "group": "kr", "default": True, "color": "#FFD700"},
-    {"key": "naver_trends", "label": "네이버 트렌드", "group": "kr", "default": True, "color": "#03C75A"},
+    {"key": "dcinside",   "label": "디시인사이드",  "group": "kr", "default": False, "color": "#1D5A8E"},
+    {"key": "ppomppu",    "label": "뽐뿌",          "group": "kr", "default": False, "color": "#FF6B00"},
+    {"key": "inven",      "label": "인벤",          "group": "kr", "default": False, "color": "#00A651"},
+    {"key": "natepan",    "label": "네이트판",      "group": "kr", "default": False, "color": "#EC2028"},
+    {"key": "clien",      "label": "클리앙",        "group": "kr", "default": False, "color": "#3B82F6"},
+    {"key": "bobaedream", "label": "보배드림",      "group": "kr", "default": False, "color": "#333333"},
+    {"key": "mlbpark",    "label": "MLB파크",       "group": "kr", "default": False, "color": "#003DA5"},
+    {"key": "humoruniv",  "label": "웃긴대학",      "group": "kr", "default": False, "color": "#FFD700"},
+    {"key": "naver_trends", "label": "네이버 트렌드", "group": "kr", "default": False, "color": "#03C75A"},
     # 🌍 해외 — 모두 기본 OFF (필요 시 수동으로 켜기)
     {"key": "reddit",        "label": "Reddit",       "group": "global", "default": False, "color": "#FF4500"},
     {"key": "threads",       "label": "Threads",      "group": "global", "default": False, "color": "#000000"},

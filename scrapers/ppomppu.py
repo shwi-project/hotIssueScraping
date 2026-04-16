@@ -188,13 +188,21 @@ class PpomppuScraper(BaseScraper):
                 if len(items) >= 80:
                     break
 
-        # 최종 필터: _is_ad_title + URL에 no= 숫자
+        # 최종 필터: _is_ad_title + URL에 no= 숫자 + 광고/통신 게시판 URL 제외
+        _AD_BOARD_IDS = re.compile(
+            r"id=(?:phone|mobile|telecom|internet|rental|"
+            r"ppomppu4|ppomppu5|ppomppu6|ppomppu7|ppomppu8)",
+            re.I,
+        )
+
         def _ok(it: dict) -> bool:
             t = (it.get("title") or "").strip()
             if self._is_ad_title(t):
                 return False
             u = it.get("url", "")
             if not re.search(r"no=\d+", u):
+                return False
+            if _AD_BOARD_IDS.search(u):
                 return False
             return True
         items = [it for it in items if _ok(it)]
