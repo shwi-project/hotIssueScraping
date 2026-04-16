@@ -101,7 +101,7 @@ REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "10"))
 # AI 분석
 # ---------------------------------------------------------------------------
 ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
-GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 ANALYZE_BATCH_SIZE: int = int(os.getenv("ANALYZE_BATCH_SIZE", "20"))
 MAX_CACHE_SIZE: int = int(os.getenv("MAX_CACHE_SIZE", "500"))  # analysis_cache 최대 항목 수
 
