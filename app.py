@@ -71,7 +71,7 @@ st.markdown(
         background: linear-gradient(135deg, #7173f0 0%, #9b6ef3 100%) !important;
         color: white !important;
         border: none !important;
-        border-radius: 16px !important;
+        border-radius: 8px !important;
         padding: 2px 12px !important;
         min-height: 26px !important;
         height: 26px !important;
