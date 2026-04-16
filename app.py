@@ -68,7 +68,7 @@ st.markdown(
     }
     /* AI 분석 버튼 — pill 스타일 */
     div[class*="st-key-ai_btn_"] button {
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+        background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%) !important;
         color: white !important;
         border: none !important;
         border-radius: 16px !important;
