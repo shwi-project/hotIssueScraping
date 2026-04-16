@@ -151,11 +151,11 @@ def _call_api(client_info: tuple[str, Any], prompt: str, max_tokens: int) -> str
         "generationConfig": {"maxOutputTokens": max_tokens},
     }
     last_err = ""
-    for attempt in range(3):
+    for attempt in range(4):
         resp = _rq.post(url, headers=headers, json=body, timeout=120)
-        if resp.status_code == 429:
-            last_err = resp.text[:200]
-            _time.sleep((attempt + 1) * 10)
+        if resp.status_code in (429, 503, 529):
+            last_err = f"{resp.status_code}: {resp.text[:200]}"
+            _time.sleep((attempt + 1) * 5)
             continue
         if not resp.ok:
             try:
@@ -174,7 +174,7 @@ def _call_api(client_info: tuple[str, Any], prompt: str, max_tokens: int) -> str
             return text
         except (KeyError, IndexError) as exc:
             raise AnalyzerError(f"Gemini 응답 파싱 실패: {data}") from exc
-    raise AnalyzerError(f"Gemini 429 한도 초과: {last_err}")
+    raise AnalyzerError(f"Gemini 일시적 오류 (재시도 초과): {last_err}")
 
 
 # ---------------------------------------------------------------------------

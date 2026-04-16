@@ -169,6 +169,7 @@ class TiktokTrendsScraper(BaseScraper):
     def _fetch_via_gemini(self, limit: int) -> list[dict]:
         try:
             import requests as _rq
+            import time as _time
             prompt = (
                 f"지금 한국 TikTok에서 유행하는 해시태그/챌린지/밈 {limit}개를 찾아줘. "
                 "JSON 배열로만 답하고 각 항목은 "
@@ -177,15 +178,22 @@ class TiktokTrendsScraper(BaseScraper):
                 '"engagement": "대략적 인기"} '
                 "필드를 포함해. 다른 설명 없이 JSON만."
             )
-            resp = _rq.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
-                headers={"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()},
-                json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"maxOutputTokens": 2048},
-                },
-                timeout=60,
-            )
+            body = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"maxOutputTokens": 2048},
+            }
+            resp = None
+            for attempt in range(3):
+                resp = _rq.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+                    headers={"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()},
+                    json=body,
+                    timeout=60,
+                )
+                if resp.status_code in (429, 503, 529):
+                    _time.sleep((attempt + 1) * 5)
+                    continue
+                break
             if not resp.ok:
                 self.last_error = f"Gemini API {resp.status_code}: {resp.text[:100]}"
                 return []

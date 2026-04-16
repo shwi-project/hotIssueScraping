@@ -186,17 +186,25 @@ class ThreadsScraper(BaseScraper):
     def _fetch_via_gemini(self, limit: int) -> list[dict]:
         try:
             import requests as _rq
-            resp = _rq.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
-                headers={"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()},
-                json={
-                    "contents": [{"parts": [{"text": self._prompt(limit)}]}],
-                    "generationConfig": {"maxOutputTokens": 2048},
-                },
-                timeout=60,
-            )
+            import time as _time
+            body = {
+                "contents": [{"parts": [{"text": self._prompt(limit)}]}],
+                "generationConfig": {"maxOutputTokens": 2048},
+            }
+            resp = None
+            for attempt in range(3):
+                resp = _rq.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+                    headers={"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()},
+                    json=body,
+                    timeout=60,
+                )
+                if resp.status_code in (429, 503, 529):
+                    _time.sleep((attempt + 1) * 5)
+                    continue
+                break
             if not resp.ok:
-                self.last_error = f"Gemini API {resp.status_code}"
+                self.last_error = f"Gemini API {resp.status_code}: {resp.text[:100]}"
                 return []
             parts = resp.json()["candidates"][0]["content"].get("parts", [])
             text = "\n".join(p.get("text", "") for p in parts if p.get("text"))
