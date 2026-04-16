@@ -167,18 +167,17 @@ class TiktokTrendsScraper(BaseScraper):
 
     def _fetch_via_gemini(self, limit: int) -> list[dict]:
         prompt = (
-            f'한국 TikTok 인기 트렌드 {limit}개를 아래 JSON 배열 형식으로만 답해. '
-            '설명 없이 JSON만:\n'
-            '[{"title":"#트렌드명","summary":"1-2줄 설명","url":"","engagement":"인기도"},...]'
+            f'한국 TikTok 인기 트렌드 {limit}개를 JSON 배열로 반환해. '
+            f'각 항목: {{"title":"#트렌드명","summary":"1-2줄 설명","url":"","engagement":"인기도"}}'
         )
-        raw_text = self.gemini_call(prompt)
+        raw_text = self.gemini_call(prompt, json_mode=True)
         if not raw_text:
             return []
 
         logger.info("TikTok Gemini raw: %s", raw_text[:200])
-        extracted = self._extract_json(raw_text)
+        # json_mode=True 이므로 대부분 바로 파싱 가능; 실패 시 repair 시도
         parsed = None
-        for candidate in (extracted, self._repair_json(extracted)):
+        for candidate in (raw_text, self._extract_json(raw_text), self._repair_json(raw_text)):
             try:
                 parsed = json.loads(candidate)
                 break

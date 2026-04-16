@@ -168,9 +168,10 @@ class ThreadsScraper(BaseScraper):
 
     def _parse_response(self, text: str, limit: int) -> list[dict]:
         logger.info("Threads Gemini raw: %s", text[:200])
-        extracted = self._extract_json(text)
         parsed = None
-        for candidate in (extracted, self._repair_json(extracted)):
+        # json_mode=True 응답은 바로 파싱 가능; 혹시 실패하면 extract/repair 시도
+        extracted = self._extract_json(text)
+        for candidate in (text, extracted, self._repair_json(extracted)):
             try:
                 parsed = json.loads(candidate)
                 break
@@ -193,7 +194,7 @@ class ThreadsScraper(BaseScraper):
         return items
 
     def _fetch_via_gemini(self, limit: int) -> list[dict]:
-        raw_text = self.gemini_call(self._prompt(limit))
+        raw_text = self.gemini_call(self._prompt(limit), json_mode=True)
         if not raw_text:
             return []
         return self._parse_response(raw_text, limit)
