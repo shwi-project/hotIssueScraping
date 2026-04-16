@@ -66,6 +66,25 @@ st.markdown(
         background: #FFFFFF;
         box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     }
+    /* AI 분석 버튼 — pill 스타일 */
+    div[class*="st-key-ai_btn_"] button {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 20px !important;
+        padding: 4px 16px !important;
+        font-size: 0.75rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.02em !important;
+        height: auto !important;
+        min-height: 28px !important;
+        box-shadow: 0 2px 8px rgba(99,102,241,0.35) !important;
+        transition: opacity 0.15s !important;
+        width: auto !important;
+    }
+    div[class*="st-key-ai_btn_"] button:hover {
+        opacity: 0.88 !important;
+    }
     .item-title {
         font-weight: 700;
         font-size: 1rem;
@@ -525,16 +544,7 @@ with pop_col1:
             "사이트당 수집 건수", 5, 20, MAX_ITEMS_PER_SITE, key="per_site_limit"
         )
 
-        st.divider()
-        _ai_provider = analyzer.active_provider()
-        ai_on = st.toggle(
-            f"🤖 AI 분석 ON{f' ({_ai_provider})' if _ai_provider else ''}",
-            value=analyzer.is_available(),
-            help="ANTHROPIC_API_KEY 또는 GEMINI_API_KEY 필요 — 설정 탭에서 입력",
-            key="ai_on_toggle",
-        )
-        if ai_on and not analyzer.is_available():
-            st.warning("API 키가 없어요. 설정 탭에서 Anthropic 또는 Gemini 키를 입력하세요.")
+        # AI 분석은 카드 개별 버튼으로만 수행 (자동 분석 제거)
 
 with pop_col2:
     run_btn = st.button(
@@ -549,7 +559,6 @@ with pop_col2:
 _genre = st.session_state.get("genre_filter", "전체")
 _keyword = st.session_state.get("keyword_filter", "")
 _per_site_limit = st.session_state.get("per_site_limit", MAX_ITEMS_PER_SITE)
-_ai_on = st.session_state.get("ai_on_toggle", False)
 # 체크박스 값도 세션에서 재계산 (팝오버 닫히면 kr_keys/gl_keys가 이전 값이 됨)
 kr_keys = [it["key"] for it in SCRAPER_REGISTRY
            if it["group"] == "kr" and st.session_state.get(f"chk_{it['key']}")]
@@ -559,7 +568,6 @@ gl_keys = [it["key"] for it in SCRAPER_REGISTRY
 genre = _genre
 keyword = _keyword
 per_site_limit = _per_site_limit
-ai_on = _ai_on
 
 st.divider()
 
@@ -579,40 +587,13 @@ if run_btn:
 
         items = payload["items"]
 
-        # AI 분석 (배치) — analysis_cache로 중복 API 호출 방지
-        if ai_on and items and analyzer.is_available():
-            cache = st.session_state.analysis_cache
-            # 캐시에 없는 항목만 새로 분석
-            uncached = [it for it in items if not (it.get("url") and it["url"] in cache)]
-            cached_urls = {it["url"] for it in items if it.get("url") and it["url"] in cache}
-
-            if uncached:
-                with st.spinner(f"🤖 AI가 쇼츠 아이디어를 분석하는 중… ({len(uncached)}건 신규)"):
-                    analyzed = analyzer.analyze_batch(uncached)
-                # 새 분석 결과를 캐시에 저장
-                for it in analyzed:
-                    if it.get("url") and it.get("analysis"):
-                        cache[it["url"]] = it["analysis"]
-                # uncached → analyzed 로 교체
-                url_to_analyzed = {it.get("url"): it for it in analyzed if it.get("url")}
-                items = [
-                    url_to_analyzed.get(it.get("url"), it) if it.get("url") not in cached_urls
-                    else it
-                    for it in items
-                ]
-
-            # 캐시된 항목에 분석 결과 적용
-            items = [
-                {**it, "analysis": cache[it["url"]]} if (it.get("url") in cache and not it.get("analysis"))
-                else it
-                for it in items
-            ]
-
-            # 캐시 크기 상한 초과 시 오래된 항목부터 제거
-            if len(cache) > MAX_CACHE_SIZE:
-                excess = len(cache) - MAX_CACHE_SIZE
-                for old_key in list(cache.keys())[:excess]:
-                    del cache[old_key]
+        # 캐시된 분석 결과 적용 (이전에 수동으로 분석한 항목 복원)
+        cache = st.session_state.analysis_cache
+        items = [
+            {**it, "analysis": cache[it["url"]]} if (it.get("url") in cache and not it.get("analysis"))
+            else it
+            for it in items
+        ]
 
         st.session_state.results = items
         # 플랫폼 뱃지 선택 초기화: 이전 수집과 소스 목록이 달라지면 Streamlit이
@@ -720,7 +701,7 @@ def render_card(item: dict, *, key_prefix: str, show_save: bool = True) -> None:
                     st.markdown(f"**활용도 점수**: <span class='stars'>{stars}</span> ({score}/5)",
                                 unsafe_allow_html=True)
         elif analyzer.is_available():
-            if st.button("🤖 AI 분석", key=f"{key_prefix}_single"):
+            if st.button("✨ AI 분석", key=f"ai_btn_{key_prefix}"):
                 with st.spinner("분석 중…"):
                     _analysis_err = ""
                     try:
