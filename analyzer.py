@@ -134,47 +134,57 @@ def _get_client() -> tuple[str, Any] | None:
 
 
 def _call_api(client_info: tuple[str, Any], prompt: str, max_tokens: int) -> str:
-    """Gemini REST API 호출 → 텍스트 반환."""
-    _provider, client = client_info  # provider는 항상 "gemini"
+    """Gemini REST API 호출 → 텍스트 반환.
+    주 모델(gemini-2.5-flash) 503 지속 시 gemini-2.0-flash로 자동 폴백.
+    """
+    _provider, api_key = client_info
     import requests as _rq
     import time as _time
-    api_key = client  # _get_client에서 키 문자열을 그대로 전달
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{GEMINI_MODEL}:generateContent"
-    )
+
+    base_url = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
-    # 시스템 프롬프트를 user 메시지 앞에 삽입 (system_instruction 호환성 문제 우회)
     full_prompt = f"{ANALYSIS_SYSTEM}\n\n{prompt}"
     body = {
         "contents": [{"parts": [{"text": full_prompt}]}],
         "generationConfig": {"maxOutputTokens": max_tokens},
     }
+
+    # 주 모델 실패 시 폴백 모델 순서
+    models = [GEMINI_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
     last_err = ""
-    for attempt in range(4):
-        resp = _rq.post(url, headers=headers, json=body, timeout=120)
-        if resp.status_code in (429, 503, 529):
-            last_err = f"{resp.status_code}: {resp.text[:200]}"
-            _time.sleep((attempt + 1) * 5)
-            continue
-        if not resp.ok:
+
+    for model in models:
+        url = base_url.format(model=model)
+        for attempt in range(2):
+            resp = _rq.post(url, headers=headers, json=body, timeout=120)
+            if resp.status_code in (429, 503, 529):
+                last_err = f"{model} {resp.status_code}"
+                _time.sleep((attempt + 1) * 3)
+                continue
+            if not resp.ok:
+                try:
+                    err = resp.json().get("error", {})
+                    msg = err.get("message", resp.text[:300])
+                except Exception:
+                    msg = resp.text[:300]
+                last_err = f"{model} {resp.status_code}: {msg}"
+                break  # 이 모델은 포기, 다음 모델 시도
+            data = resp.json()
             try:
-                err = resp.json().get("error", {})
-                msg = err.get("message", resp.text[:300])
-            except Exception:
-                msg = resp.text[:300]
-            raise AnalyzerError(f"Gemini API {resp.status_code}: {msg}")
-        data = resp.json()
-        try:
-            # thinking 모드 대응: 모든 parts의 text를 합침
-            parts = data["candidates"][0]["content"].get("parts", [])
-            text = "\n".join(p.get("text", "") for p in parts if p.get("text") and not p.get("thought"))
-            if not text:
-                raise AnalyzerError(f"Gemini 응답 비어있음: {data}")
-            return text
-        except (KeyError, IndexError) as exc:
-            raise AnalyzerError(f"Gemini 응답 파싱 실패: {data}") from exc
-    raise AnalyzerError(f"Gemini 일시적 오류 (재시도 초과): {last_err}")
+                parts = data["candidates"][0]["content"].get("parts", [])
+                text = "\n".join(
+                    p.get("text", "") for p in parts
+                    if p.get("text") and not p.get("thought")
+                )
+                if not text:
+                    raise AnalyzerError(f"Gemini 응답 비어있음: {data}")
+                return text
+            except (KeyError, IndexError) as exc:
+                raise AnalyzerError(f"Gemini 응답 파싱 실패: {data}") from exc
+        else:
+            continue  # 재시도 모두 소진 → 다음 모델
+
+    raise AnalyzerError(f"Gemini 모든 모델 실패: {last_err}")
 
 
 # ---------------------------------------------------------------------------

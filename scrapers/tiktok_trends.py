@@ -178,28 +178,30 @@ class TiktokTrendsScraper(BaseScraper):
                 '"engagement": "대략적 인기"} '
                 "필드를 포함해. 다른 설명 없이 JSON만."
             )
+            headers = {"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()}
             body = {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"maxOutputTokens": 2048},
             }
+            models = [GEMINI_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
             resp = None
-            for attempt in range(3):
-                resp = _rq.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
-                    headers={"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()},
-                    json=body,
-                    timeout=60,
-                )
-                if resp.status_code in (429, 503, 529):
-                    _time.sleep((attempt + 1) * 5)
+            text = ""
+            for model in models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+                for attempt in range(2):
+                    resp = _rq.post(url, headers=headers, json=body, timeout=60)
+                    if resp.status_code in (429, 503, 529):
+                        _time.sleep((attempt + 1) * 3)
+                        continue
+                    break
+                if resp is None or not resp.ok:
+                    self.last_error = f"Gemini {model} {resp.status_code if resp else '?'}"
                     continue
+                parts = resp.json()["candidates"][0]["content"].get("parts", [])
+                text = "\n".join(p.get("text", "") for p in parts if p.get("text") and not p.get("thought"))
                 break
-            if not resp.ok:
-                self.last_error = f"Gemini API {resp.status_code}: {resp.text[:100]}"
+            if not text:
                 return []
-            # thinking 모드 대응: 모든 parts의 text를 합침
-            parts = resp.json()["candidates"][0]["content"].get("parts", [])
-            text = "\n".join(p.get("text", "") for p in parts if p.get("text") and not p.get("thought"))
             extracted = self._extract_json(text)
             try:
                 data = json.loads(extracted)

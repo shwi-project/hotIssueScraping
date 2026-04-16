@@ -187,28 +187,28 @@ class ThreadsScraper(BaseScraper):
         try:
             import requests as _rq
             import time as _time
+            headers = {"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()}
             body = {
                 "contents": [{"parts": [{"text": self._prompt(limit)}]}],
                 "generationConfig": {"maxOutputTokens": 2048},
             }
-            resp = None
-            for attempt in range(3):
-                resp = _rq.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
-                    headers={"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()},
-                    json=body,
-                    timeout=60,
-                )
-                if resp.status_code in (429, 503, 529):
-                    _time.sleep((attempt + 1) * 5)
+            models = [GEMINI_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
+            for model in models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+                resp = None
+                for attempt in range(2):
+                    resp = _rq.post(url, headers=headers, json=body, timeout=60)
+                    if resp.status_code in (429, 503, 529):
+                        _time.sleep((attempt + 1) * 3)
+                        continue
+                    break
+                if resp is None or not resp.ok:
+                    self.last_error = f"Gemini {model} {resp.status_code if resp else '?'}"
                     continue
-                break
-            if not resp.ok:
-                self.last_error = f"Gemini API {resp.status_code}: {resp.text[:100]}"
-                return []
-            parts = resp.json()["candidates"][0]["content"].get("parts", [])
-            text = "\n".join(p.get("text", "") for p in parts if p.get("text") and not p.get("thought"))
-            return self._parse_response(text, limit)
+                parts = resp.json()["candidates"][0]["content"].get("parts", [])
+                text = "\n".join(p.get("text", "") for p in parts if p.get("text") and not p.get("thought"))
+                return self._parse_response(text, limit)
+            return []
         except Exception as exc:  # noqa: BLE001
             self.last_error = f"Gemini 호출 실패: {type(exc).__name__}: {str(exc)[:100]}"
             return []
