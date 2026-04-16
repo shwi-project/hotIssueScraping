@@ -842,13 +842,10 @@ class BaseScraper(ABC):
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": gen_cfg,
         }
-        # json_mode 에서는 gemini-2.5-flash thinking 모드가 JSON 출력과 충돌할 수 있어
-        # 2.0-flash 를 먼저 시도하고 2.5 를 뒤에 둠
+        # 항상 GEMINI_MODEL(2.5-flash) 우선, 실패 시 1.5-flash 폴백
+        # (gemini-2.0-flash 는 일부 계정/지역에서 404 반환하므로 제외)
         from config import GEMINI_MODEL as _GM
-        if json_mode:
-            models = ["gemini-2.0-flash", _GM, "gemini-1.5-flash"]
-        else:
-            models = [_GM, "gemini-2.0-flash", "gemini-1.5-flash"]
+        models = [_GM, "gemini-1.5-flash"]
 
         for model in models:
             url = (
