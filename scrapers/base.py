@@ -812,3 +812,57 @@ class BaseScraper(ABC):
         if comments:
             parts.append(f"댓글 {comments:,}")
         return " / ".join(parts)
+
+    def gemini_call(self, prompt: str, max_tokens: int = 2048) -> str | None:
+        """Gemini REST API 호출 — 모델 자동 폴백 + 예외 안전.
+
+        성공 시 응답 텍스트(thought 제외) 반환, 실패 시 None + self.last_error 설정.
+        """
+        import requests as _rq
+        import time as _time
+        from config import GEMINI_MODEL, get_gemini_key
+
+        key = get_gemini_key()
+        if not key:
+            self.last_error = "GEMINI_API_KEY 없음"
+            return None
+
+        headers = {"Content-Type": "application/json", "x-goog-api-key": key}
+        body = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"maxOutputTokens": max_tokens},
+        }
+        models = [GEMINI_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
+
+        for model in models:
+            url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models"
+                f"/{model}:generateContent"
+            )
+            for attempt in range(2):
+                try:
+                    resp = _rq.post(url, headers=headers, json=body, timeout=60)
+                except Exception as exc:  # noqa: BLE001
+                    self.last_error = f"Gemini {model} 연결 오류: {exc}"
+                    break
+                if resp.status_code in (429, 503, 529):
+                    self.last_error = f"Gemini {model} {resp.status_code}"
+                    _time.sleep((attempt + 1) * 3)
+                    continue
+                if not resp.ok:
+                    self.last_error = f"Gemini {model} {resp.status_code}"
+                    break
+                try:
+                    parts = resp.json()["candidates"][0]["content"].get("parts", [])
+                    text = "\n".join(
+                        p.get("text", "") for p in parts
+                        if p.get("text") and not p.get("thought")
+                    )
+                    if text:
+                        self.last_error = ""
+                        return text
+                except Exception as exc:  # noqa: BLE001
+                    self.last_error = f"Gemini {model} 응답 파싱 오류: {exc}"
+                break  # 재시도 불필요한 오류 → 다음 모델로
+
+        return None

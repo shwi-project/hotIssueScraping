@@ -10,7 +10,7 @@ import json
 import logging
 import re
 
-from config import GEMINI_MODEL, get_gemini_key, get_scrapecreators_key
+from config import get_scrapecreators_key
 
 from .base import BaseScraper
 
@@ -167,73 +167,38 @@ class TiktokTrendsScraper(BaseScraper):
         return text
 
     def _fetch_via_gemini(self, limit: int) -> list[dict]:
-        try:
-            import requests as _rq
-            import time as _time
-            # 프롬프트 — 예시를 직접 보여줘서 형식 오해 방지
-            prompt = (
-                f'한국 TikTok 인기 트렌드 {limit}개를 아래 JSON 배열 형식으로만 답해. '
-                '설명 없이 JSON만:\n'
-                '[{"title":"#트렌드명","summary":"1-2줄 설명","url":"","engagement":"인기도"},...]'
-            )
-            headers = {"Content-Type": "application/json", "x-goog-api-key": get_gemini_key()}
-            body = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"maxOutputTokens": 2048},
-            }
-            models = [GEMINI_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
-            raw_text = ""
-            for model in models:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-                resp = None
-                for attempt in range(2):
-                    resp = _rq.post(url, headers=headers, json=body, timeout=60)
-                    if resp.status_code in (429, 503, 529):
-                        _time.sleep((attempt + 1) * 3)
-                        continue
-                    break
-                if resp is None or not resp.ok:
-                    self.last_error = f"Gemini {model} {getattr(resp, 'status_code', '?')}"
-                    continue
-                parts = resp.json()["candidates"][0]["content"].get("parts", [])
-                raw_text = "\n".join(
-                    p.get("text", "") for p in parts
-                    if p.get("text") and not p.get("thought")
-                )
-                if raw_text:
-                    break
-
-            if not raw_text:
-                return []
-
-            logger.info("TikTok Gemini raw: %s", raw_text[:200])
-
-            extracted = self._extract_json(raw_text)
-            parsed = None
-            for candidate in (extracted, self._repair_json(extracted)):
-                try:
-                    parsed = json.loads(candidate)
-                    break
-                except (json.JSONDecodeError, ValueError):
-                    continue
-
-            if not isinstance(parsed, list):
-                logger.warning("TikTok Gemini JSON 파싱 실패, raw: %s", raw_text[:300])
-                self.last_error = "Gemini 응답 파싱 실패 (JSON 아님)"
-                return []
-
-            items: list[dict] = []
-            for row in parsed[:limit]:
-                if not isinstance(row, dict):
-                    continue
-                items.append(self._normalize({
-                    "title": row.get("title", ""),
-                    "summary": row.get("summary", ""),
-                    "url": row.get("url") or "https://www.tiktok.com/discover",
-                    "engagement": row.get("engagement", "AI 추정"),
-                }))
-            return items
-        except Exception as exc:  # noqa: BLE001
-            self.last_error = f"Gemini 호출 실패: {type(exc).__name__}: {str(exc)[:100]}"
-            logger.info("TikTok Gemini fallback 실패: %s", exc)
+        prompt = (
+            f'한국 TikTok 인기 트렌드 {limit}개를 아래 JSON 배열 형식으로만 답해. '
+            '설명 없이 JSON만:\n'
+            '[{"title":"#트렌드명","summary":"1-2줄 설명","url":"","engagement":"인기도"},...]'
+        )
+        raw_text = self.gemini_call(prompt)
+        if not raw_text:
             return []
+
+        logger.info("TikTok Gemini raw: %s", raw_text[:200])
+        extracted = self._extract_json(raw_text)
+        parsed = None
+        for candidate in (extracted, self._repair_json(extracted)):
+            try:
+                parsed = json.loads(candidate)
+                break
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+        if not isinstance(parsed, list):
+            logger.warning("TikTok Gemini JSON 파싱 실패, raw: %s", raw_text[:300])
+            self.last_error = "Gemini 응답 파싱 실패 (JSON 아님)"
+            return []
+
+        items: list[dict] = []
+        for row in parsed[:limit]:
+            if not isinstance(row, dict):
+                continue
+            items.append(self._normalize({
+                "title": row.get("title", ""),
+                "summary": row.get("summary", ""),
+                "url": row.get("url") or "https://www.tiktok.com/discover",
+                "engagement": row.get("engagement", "AI 추정"),
+            }))
+        return items
