@@ -1160,32 +1160,30 @@ GEMINI_API_KEY=AIzaSy...
                 st.info(f"키 확인됨: `{_key[:8]}...{_key[-4:]}` ({len(_key)}자)")
                 with st.spinner("Gemini API 호출 중..."):
                     import requests as _rq_test
-                    _models = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
                     _base_url = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
                     _hdrs = {"Content-Type": "application/json", "x-goog-api-key": _key}
+                    # TikTok 실제 프롬프트로 테스트
+                    _tiktok_prompt = (
+                        "한국 TikTok 인기 트렌드 3개 목록을 아래 JSON 배열 형식으로만 출력해. "
+                        "코드블럭·설명·추가 텍스트 없이 JSON 배열 자체만 출력:\n"
+                        '[{"title":"#트렌드명","summary":"1-2줄 설명","url":"","engagement":"인기도"}]'
+                    )
                     _body = {
-                        "contents": [{"parts": [{"text": "안녕하세요. 한국어로 짧게 답하세요."}]}],
-                        "generationConfig": {"maxOutputTokens": 50},
+                        "contents": [{"parts": [{"text": _tiktok_prompt}]}],
+                        "generationConfig": {"maxOutputTokens": 1024},
                     }
-                    for _m in _models:
-                        try:
-                            _r = _rq_test.post(_base_url.format(m=_m), headers=_hdrs, json=_body, timeout=20)
-                            if _r.ok:
-                                try:
-                                    _parts = _r.json()["candidates"][0]["content"].get("parts", [])
-                                    _txt = " ".join(p.get("text","") for p in _parts if not p.get("thought") and p.get("text"))
-                                except Exception:
-                                    _txt = "(응답 파싱 오류)"
-                                st.success(f"✅ **{_m}** 성공!\n\n응답: `{_txt[:100]}`")
-                                break
-                            else:
-                                try:
-                                    _err = _r.json().get("error", {}).get("message", _r.text[:200])
-                                except Exception:
-                                    _err = _r.text[:200]
-                                st.warning(f"⚠️ **{_m}** 실패 (HTTP {_r.status_code}): {_err}")
-                        except Exception as _exc:
-                            st.warning(f"⚠️ **{_m}** 연결 오류: {_exc}")
+                    try:
+                        _r = _rq_test.post(_base_url.format(m="gemini-2.5-flash"), headers=_hdrs, json=_body, timeout=30)
+                        if _r.ok:
+                            _data = _r.json()
+                            _parts = _data["candidates"][0]["content"].get("parts", [])
+                            _txt = "\n".join(p.get("text","") for p in _parts if not p.get("thought") and p.get("text"))
+                            st.success(f"✅ gemini-2.5-flash 응답 성공")
+                            st.code(_txt[:500], language="json")
+                        else:
+                            st.error(f"❌ HTTP {_r.status_code}: {_r.text[:300]}")
+                    except Exception as _exc:
+                        st.error(f"❌ 연결 오류: {_exc}")
 
     # -----------------------------------------------------------------------
     # YouTube Data API
