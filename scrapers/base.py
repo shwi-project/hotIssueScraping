@@ -838,7 +838,7 @@ class BaseScraper(ABC):
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"maxOutputTokens": max_tokens},
         }
-        models = [_GM, "gemini-1.5-flash"]
+        models = [_GM]
 
         for model in models:
             url = (
