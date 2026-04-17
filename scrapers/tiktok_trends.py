@@ -136,9 +136,12 @@ class TiktokTrendsScraper(BaseScraper):
     @staticmethod
     def _extract_json(text: str) -> str:
         text = text.strip()
+        # 닫힌 코드 펜스 ```json ... ```
         fence = re.search(r"```(?:json)?\s*([\s\S]+?)```", text)
         if fence:
             return fence.group(1).strip()
+        # 열린 코드 펜스만 있고 닫는 ``` 없음 (응답 잘림) → 접두사만 제거
+        text = re.sub(r"^```(?:json)?\s*", "", text)
         m = re.search(r"(\[[\s\S]*\])", text)
         return m.group(1).strip() if m else text
 
@@ -171,7 +174,7 @@ class TiktokTrendsScraper(BaseScraper):
             '코드블럭·설명·추가 텍스트 없이 JSON 배열 자체만 출력:\n'
             '[{"title":"#트렌드명","summary":"1-2줄 설명","url":"","engagement":"인기도"}]'
         )
-        raw_text = self.gemini_call(prompt)
+        raw_text = self.gemini_call(prompt, max_tokens=4096)
         if not raw_text:
             return []
 

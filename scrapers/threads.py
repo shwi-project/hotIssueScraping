@@ -135,9 +135,12 @@ class ThreadsScraper(BaseScraper):
     def _extract_json(text: str) -> str:
         import re
         text = text.strip()
+        # 닫힌 코드 펜스 ```json ... ```
         fence = re.search(r"```(?:json)?\s*([\s\S]+?)```", text)
         if fence:
             return fence.group(1).strip()
+        # 열린 코드 펜스만 있고 닫는 ``` 없음 (응답 잘림) → 접두사만 제거
+        text = re.sub(r"^```(?:json)?\s*", "", text)
         m = re.search(r"(\[[\s\S]*\]|\{[\s\S]*\})", text)
         return m.group(1).strip() if m else text
 
@@ -192,7 +195,7 @@ class ThreadsScraper(BaseScraper):
         return items
 
     def _fetch_via_gemini(self, limit: int) -> list[dict]:
-        raw_text = self.gemini_call(self._prompt(limit))
+        raw_text = self.gemini_call(self._prompt(limit), max_tokens=4096)
         if not raw_text:
             return []
         return self._parse_response(raw_text, limit)
