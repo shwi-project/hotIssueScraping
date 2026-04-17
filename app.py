@@ -1150,24 +1150,6 @@ GEMINI_API_KEY=AIzaSy...
             """
         )
 
-        # Gemini API 연결 테스트
-        st.markdown("### 🧪 TikTok 스크래퍼 직접 테스트")
-        if st.button("TikTok 스크래퍼 실행", key="btn_gemini_test"):
-            import traceback as _tb
-            from scrapers.tiktok_trends import TiktokTrendsScraper
-            _sc = TiktokTrendsScraper()
-            with st.spinner("TikTok 스크래퍼 실행 중..."):
-                try:
-                    _items = _sc.get_trending(limit=3)
-                except Exception as _exc:
-                    st.error(f"❌ 예외 발생:\n```\n{_tb.format_exc()}\n```")
-                    _items = []
-            if _items:
-                st.success(f"✅ {len(_items)}개 수집 성공")
-                st.json(_items[0])
-            else:
-                st.warning(f"수집 실패 — last_error: `{_sc.last_error}`")
-
     # -----------------------------------------------------------------------
     # YouTube Data API
     # -----------------------------------------------------------------------
