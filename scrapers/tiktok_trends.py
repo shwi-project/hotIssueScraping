@@ -179,9 +179,9 @@ class TiktokTrendsScraper(BaseScraper):
             return []
 
         logger.info("TikTok Gemini raw: %s", raw_text[:200])
-        # json_mode=True 이므로 대부분 바로 파싱 가능; 실패 시 repair 시도
+        extracted = self._extract_json(raw_text)
         parsed = None
-        for candidate in (raw_text, self._extract_json(raw_text), self._repair_json(raw_text)):
+        for candidate in (raw_text, extracted, self._repair_json(extracted)):
             try:
                 parsed = json.loads(candidate)
                 break
