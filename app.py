@@ -1151,39 +1151,22 @@ GEMINI_API_KEY=AIzaSy...
         )
 
         # Gemini API 연결 테스트
-        st.markdown("### 🧪 API 연결 테스트")
-        if st.button("Gemini API 테스트", key="btn_gemini_test"):
-            _key = get_gemini_key()
-            if not _key:
-                st.error("❌ GEMINI_API_KEY 없음 — Streamlit Secrets 또는 .env에 키를 등록하세요.")
+        st.markdown("### 🧪 TikTok 스크래퍼 직접 테스트")
+        if st.button("TikTok 스크래퍼 실행", key="btn_gemini_test"):
+            import traceback as _tb
+            from scrapers.tiktok_trends import TiktokTrendsScraper
+            _sc = TiktokTrendsScraper()
+            with st.spinner("TikTok 스크래퍼 실행 중..."):
+                try:
+                    _items = _sc.get_trending(limit=3)
+                except Exception as _exc:
+                    st.error(f"❌ 예외 발생:\n```\n{_tb.format_exc()}\n```")
+                    _items = []
+            if _items:
+                st.success(f"✅ {len(_items)}개 수집 성공")
+                st.json(_items[0])
             else:
-                st.info(f"키 확인됨: `{_key[:8]}...{_key[-4:]}` ({len(_key)}자)")
-                with st.spinner("Gemini API 호출 중..."):
-                    import requests as _rq_test
-                    _base_url = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
-                    _hdrs = {"Content-Type": "application/json", "x-goog-api-key": _key}
-                    # TikTok 실제 프롬프트로 테스트
-                    _tiktok_prompt = (
-                        "한국 TikTok 인기 트렌드 3개 목록을 아래 JSON 배열 형식으로만 출력해. "
-                        "코드블럭·설명·추가 텍스트 없이 JSON 배열 자체만 출력:\n"
-                        '[{"title":"#트렌드명","summary":"1-2줄 설명","url":"","engagement":"인기도"}]'
-                    )
-                    _body = {
-                        "contents": [{"parts": [{"text": _tiktok_prompt}]}],
-                        "generationConfig": {"maxOutputTokens": 1024},
-                    }
-                    try:
-                        _r = _rq_test.post(_base_url.format(m="gemini-2.5-flash"), headers=_hdrs, json=_body, timeout=30)
-                        if _r.ok:
-                            _data = _r.json()
-                            _parts = _data["candidates"][0]["content"].get("parts", [])
-                            _txt = "\n".join(p.get("text","") for p in _parts if not p.get("thought") and p.get("text"))
-                            st.success(f"✅ gemini-2.5-flash 응답 성공")
-                            st.code(_txt[:500], language="json")
-                        else:
-                            st.error(f"❌ HTTP {_r.status_code}: {_r.text[:300]}")
-                    except Exception as _exc:
-                        st.error(f"❌ 연결 오류: {_exc}")
+                st.warning(f"수집 실패 — last_error: `{_sc.last_error}`")
 
     # -----------------------------------------------------------------------
     # YouTube Data API
