@@ -40,6 +40,10 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    [data-testid="stToolbar"] {display: none !important;}
+    [data-testid="stDecoration"] {display: none !important;}
+    #MainMenu {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
     .platform-badge {
         display: inline-block;
         padding: 2px 10px;
