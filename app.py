@@ -44,8 +44,12 @@ st.markdown(
     [data-testid="stDecoration"] {display: none !important;}
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
-    .stMainBlockContainer, [data-testid="stMainBlockContainer"] {padding-top: 1rem !important;}
-    header[data-testid="stHeader"] {height: 0 !important; min-height: 0 !important;}
+    .block-container {padding-top: 0.5rem !important;}
+    [data-testid="block-container"] {padding-top: 0.5rem !important;}
+    .stMainBlockContainer {padding-top: 0.5rem !important;}
+    [data-testid="stMainBlockContainer"] {padding-top: 0.5rem !important;}
+    header[data-testid="stHeader"] {height: 0 !important; min-height: 0 !important; padding: 0 !important;}
+    section[data-testid="stSidebar"] ~ div > div:first-child {padding-top: 0.5rem !important;}
     .platform-badge {
         display: inline-block;
         padding: 2px 10px;
