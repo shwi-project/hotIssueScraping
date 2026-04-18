@@ -40,16 +40,15 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    header[data-testid="stHeader"] {display: none !important;}
     [data-testid="stToolbar"] {display: none !important;}
     [data-testid="stDecoration"] {display: none !important;}
-    #MainMenu {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
-    .block-container {padding-top: 0.5rem !important;}
-    [data-testid="block-container"] {padding-top: 0.5rem !important;}
-    .stMainBlockContainer {padding-top: 0.5rem !important;}
-    [data-testid="stMainBlockContainer"] {padding-top: 0.5rem !important;}
-    header[data-testid="stHeader"] {height: 0 !important; min-height: 0 !important; padding: 0 !important;}
-    section[data-testid="stSidebar"] ~ div > div:first-child {padding-top: 0.5rem !important;}
+    #MainMenu {display: none !important;}
+    footer {display: none !important;}
+    .block-container {padding-top: 1rem !important;}
+    .main .block-container {padding-top: 1rem !important;}
+    div[data-testid="stMainBlockContainer"] {padding-top: 1rem !important;}
+    div[data-testid="stAppViewContainer"] > section > div:first-child {padding-top: 1rem !important;}
     .platform-badge {
         display: inline-block;
         padding: 2px 10px;
