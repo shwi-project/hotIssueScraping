@@ -44,6 +44,8 @@ st.markdown(
     [data-testid="stDecoration"] {display: none !important;}
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
+    .stMainBlockContainer, [data-testid="stMainBlockContainer"] {padding-top: 1rem !important;}
+    header[data-testid="stHeader"] {height: 0 !important; min-height: 0 !important;}
     .platform-badge {
         display: inline-block;
         padding: 2px 10px;
