@@ -46,6 +46,21 @@ st.markdown(
     .appview-container {padding-top: 0 !important;}
     .main .block-container {padding-top: 0.5rem !important;}
     [data-testid="stMainBlockContainer"] {padding-top: 0.5rem !important;}
+    </style>
+    <script>
+    function fixLayout() {
+        var h = document.querySelector('header[data-testid="stHeader"]');
+        if (h) h.style.cssText = 'display:none!important;height:0!important;min-height:0!important;';
+        var c = document.querySelector('.appview-container');
+        if (c) c.style.cssText = c.style.cssText + 'padding-top:0!important;margin-top:0!important;';
+        var b = document.querySelector('[data-testid="stMainBlockContainer"]');
+        if (b) b.style.paddingTop = '0.5rem';
+    }
+    fixLayout();
+    setTimeout(fixLayout, 200);
+    setTimeout(fixLayout, 800);
+    </script>
+    <style>
     .platform-badge {
         display: inline-block;
         padding: 2px 10px;
