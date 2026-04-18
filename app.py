@@ -508,10 +508,11 @@ def _sync_master(group: str) -> None:
 # ---------------------------------------------------------------------------
 # 메인 상단: 타이틀 + 네비게이션 + 팝오버 컨트롤
 # ---------------------------------------------------------------------------
-st.markdown('<div id="page-top"></div>', unsafe_allow_html=True)
-st.title("🎬 쇼츠 소재 수집기")
-st.caption(
-    f"국내외 {len(SCRAPER_REGISTRY)}개 인기 플랫폼에서 바이럴 콘텐츠를 수집합니다."
+st.markdown(
+    f'<div id="page-top"></div>'
+    f'<h1 style="padding:0;margin:0 0 0.25rem 0;font-size:1.8rem;font-weight:700;">🎬 쇼츠 소재 수집기</h1>'
+    f'<p style="margin:0 0 0.5rem 0;font-size:0.85rem;color:gray;">국내외 {len(SCRAPER_REGISTRY)}개 인기 플랫폼에서 바이럴 콘텐츠를 수집합니다.</p>',
+    unsafe_allow_html=True,
 )
 
 # 네비게이션 (가로 래디오 — tab보다 모바일에 안정적)
