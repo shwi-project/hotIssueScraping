@@ -34,6 +34,8 @@ st.set_page_config(
     initial_sidebar_state="collapsed",  # 사이드바 사용 안 함 (모든 컨트롤 메인 영역)
 )
 
+import streamlit.components.v1 as _components
+
 # ---------------------------------------------------------------------------
 # 커스텀 CSS
 # ---------------------------------------------------------------------------
@@ -49,6 +51,23 @@ div.block-container, div[data-testid="stMainBlockContainer"] {padding-top:0.5rem
 div.block-container > div:first-child h1 {padding-top:0!important;margin-top:0!important;}
 </style>
 """, unsafe_allow_html=True)
+
+_components.html("""
+<script>
+function fix() {
+    var d = window.parent.document;
+    var h = d.querySelector('header[data-testid="stHeader"]');
+    if (h) { h.style.display = 'none'; h.style.height = '0'; }
+    var av = d.querySelector('[data-testid="stAppViewContainer"]');
+    if (av) av.style.paddingTop = '0';
+    var bc = d.querySelector('[data-testid="stMainBlockContainer"]');
+    if (bc) bc.style.paddingTop = '0.5rem';
+    var mn = d.querySelector('section[data-testid="stMain"]');
+    if (mn) mn.style.paddingTop = '0';
+}
+fix(); setTimeout(fix, 300); setTimeout(fix, 1000);
+</script>
+""", height=0, scrolling=False)
 
 st.markdown(
     """
