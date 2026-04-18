@@ -42,8 +42,10 @@ st.markdown(
     <style>
     header {display: none !important;}
     footer {display: none !important;}
-    .main .block-container {padding-top: 0.3rem !important;}
-    [data-testid="stMainBlockContainer"] {padding-top: 0.3rem !important;}
+    :root {--header-height: 0rem !important;}
+    .appview-container {padding-top: 0 !important;}
+    .main .block-container {padding-top: 0.5rem !important;}
+    [data-testid="stMainBlockContainer"] {padding-top: 0.5rem !important;}
     .platform-badge {
         display: inline-block;
         padding: 2px 10px;
