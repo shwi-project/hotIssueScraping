@@ -45,10 +45,11 @@ st.markdown(
     [data-testid="stDecoration"] {display: none !important;}
     #MainMenu {display: none !important;}
     footer {display: none !important;}
+    section[data-testid="stMain"] {padding-top: 0 !important; margin-top: 0 !important;}
     .block-container {padding-top: 1rem !important;}
     .main .block-container {padding-top: 1rem !important;}
+    div[data-testid="stAppViewContainer"] {padding-top: 0 !important;}
     div[data-testid="stMainBlockContainer"] {padding-top: 1rem !important;}
-    div[data-testid="stAppViewContainer"] > section > div:first-child {padding-top: 1rem !important;}
     .platform-badge {
         display: inline-block;
         padding: 2px 10px;
