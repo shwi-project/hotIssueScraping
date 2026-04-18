@@ -340,7 +340,7 @@ st.markdown(
         .block-container {
             padding-left: 0.75rem !important;
             padding-right: 0.75rem !important;
-            padding-top: 1rem !important;
+            padding-top: 0.3rem !important;
         }
         /* 카드 그리드를 세로로 적층 (3열 → 1열) */
         div[data-testid="stHorizontalBlock"] {
