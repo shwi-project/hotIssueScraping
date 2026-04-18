@@ -37,29 +37,21 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 # 커스텀 CSS
 # ---------------------------------------------------------------------------
+st.markdown("""
+<style>
+header, header[data-testid="stHeader"] {display:none!important;height:0!important;min-height:0!important;}
+footer {display:none!important;}
+[data-testid="stAppViewContainer"] {padding-top:0!important;}
+.appview-container {padding-top:0!important;}
+section[data-testid="stMain"] {padding-top:0!important;margin-top:0!important;}
+div.block-container, div[data-testid="stMainBlockContainer"] {padding-top:0.5rem!important;}
+.main .block-container {padding-top:0.5rem!important;}
+div.block-container > div:first-child h1 {padding-top:0!important;margin-top:0!important;}
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown(
     """
-    <style>
-    header {display: none !important;}
-    footer {display: none !important;}
-    :root {--header-height: 0rem !important;}
-    .appview-container {padding-top: 0 !important;}
-    .main .block-container {padding-top: 0.5rem !important;}
-    [data-testid="stMainBlockContainer"] {padding-top: 0.5rem !important;}
-    </style>
-    <script>
-    function fixLayout() {
-        var h = document.querySelector('header[data-testid="stHeader"]');
-        if (h) h.style.cssText = 'display:none!important;height:0!important;min-height:0!important;';
-        var c = document.querySelector('.appview-container');
-        if (c) c.style.cssText = c.style.cssText + 'padding-top:0!important;margin-top:0!important;';
-        var b = document.querySelector('[data-testid="stMainBlockContainer"]');
-        if (b) b.style.paddingTop = '0.5rem';
-    }
-    fixLayout();
-    setTimeout(fixLayout, 200);
-    setTimeout(fixLayout, 800);
-    </script>
     <style>
     .platform-badge {
         display: inline-block;
@@ -337,10 +329,10 @@ st.markdown(
     /* ---------- 📱 모바일 대응 ---------- */
     @media (max-width: 768px) {
         /* 메인 블록 좌우 여백 축소 */
-        .block-container {
+        div.block-container, div[data-testid="stMainBlockContainer"] {
             padding-left: 0.75rem !important;
             padding-right: 0.75rem !important;
-            padding-top: 0.3rem !important;
+            padding-top: 0.5rem !important;
         }
         /* 카드 그리드를 세로로 적층 (3열 → 1열) */
         div[data-testid="stHorizontalBlock"] {
